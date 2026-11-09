@@ -87,6 +87,18 @@
         </suki:GroupBox>
       </suki:GlassCard>
 
+      <suki:GlassCard>
+        <suki:GroupBox Header="Mania Hitsounds">
+          <controls:SettingItem
+            x:Name="WaitForFinalChordKeySetting"
+            Classes="Switch"
+            Header="Wait until final chord key"
+            Description="Play all notes in a chord together when you press its final key. Single notes play immediately; incomplete chords stay silent. Applies to live mania hitsounds."
+            Icon="MusicNote"
+            IsChecked="{Binding AppSettings.Sync.Playback.WaitForFinalChordKey}" />
+        </suki:GroupBox>
+      </suki:GlassCard>
+
       <!--  Sync & Balance  -->
       <suki:GlassCard>
         <suki:GroupBox Header="{I18N {x:Static lang:SRKeys.Audio_Processing}}">

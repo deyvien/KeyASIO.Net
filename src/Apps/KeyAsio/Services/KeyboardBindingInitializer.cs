@@ -187,10 +187,11 @@ public class KeyboardBindingInitializer
                     // Stable memory timing can enter that state briefly during normal gameplay, so it must
                     // not be used to discard a physical key press.
                     sequencer.ProcessInteraction(_playbackBuffer, keyIndex, keyTotal);
-                    foreach (var playbackInfo in _playbackBuffer)
-                    {
-                        _sfxPlaybackService.DispatchPlayback(playbackInfo);
-                    }
+                    if (sequencer is ManiaHitsoundSequencer && _appSettings.Sync.Playback.WaitForFinalChordKey)
+                        _sfxPlaybackService.DispatchChord(_playbackBuffer);
+                    else
+                        foreach (var playbackInfo in _playbackBuffer)
+                            _sfxPlaybackService.DispatchPlayback(playbackInfo);
                 }
             }
             else

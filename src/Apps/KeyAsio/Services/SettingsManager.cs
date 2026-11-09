@@ -102,7 +102,8 @@ public class SettingsManager : IDisposable
         else if (sender is AppSettingsSyncPlayback)
         {
             if (e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceFactor) ||
-                e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceMode))
+                e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceMode) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey))
             {
                 DebounceSave();
             }

@@ -29,6 +29,27 @@ public class SfxPlaybackService
     }
 
     public void DispatchPlayback(PlaybackInfo playbackInfo, float? overrideVolume = null)
+        => DispatchPlaybackTo(playbackInfo, _playbackEngine.EffectMixer, overrideVolume);
+
+    public void DispatchChord(IReadOnlyList<PlaybackInfo> chord)
+    {
+        if (chord.Count == 0) return;
+        var mixer = _playbackEngine.EffectMixer;
+        var group = new GroupedSampleProvider(mixer.WaveFormat);
+        try
+        {
+            foreach (var note in chord)
+                DispatchPlaybackTo(note, group.Mixer);
+            mixer.AddMixerInput(group);
+        }
+        catch
+        {
+            group.ResetAndGetSource();
+            throw;
+        }
+    }
+
+    private void DispatchPlaybackTo(PlaybackInfo playbackInfo, IMixingSampleProvider mixer, float? overrideVolume = null)
     {
         var cachedAudio = playbackInfo.CachedAudio;
         var hitsoundNode = playbackInfo.PlaybackEvent;
@@ -55,7 +76,7 @@ public class SfxPlaybackService
                     volume = playableNode.Volume;
             }
 
-            PlayEffectsAudio(cachedAudio, volume, playableNode.Balance);
+            PlayEffectsAudio(cachedAudio, volume, playableNode.Balance, mixer);
         }
         else
         {
@@ -65,6 +86,9 @@ public class SfxPlaybackService
     }
 
     public void PlayEffectsAudio(CachedAudio? cachedAudio, float volume, float balance)
+        => PlayEffectsAudio(cachedAudio, volume, balance, _playbackEngine.EffectMixer);
+
+    private void PlayEffectsAudio(CachedAudio? cachedAudio, float volume, float balance, IMixingSampleProvider mixer)
     {
         if (cachedAudio is null)
         {
@@ -79,7 +103,7 @@ public class SfxPlaybackService
                 var filename = cachedAudio.SourceHash.Substring("internal://dynamic/".Length);
 
                 // 创建一次性军鼓生成器
-                var provider = new SnareDrumSampleProvider(_playbackEngine.EffectMixer.WaveFormat);
+                var provider = new SnareDrumSampleProvider(mixer.WaveFormat);
 
                 // 简单的参数随机化
                 var random = Random.Shared;
@@ -120,7 +144,7 @@ public class SfxPlaybackService
                 var balanceProvider = RecyclableSampleProviderFactory.RentBalanceProvider(volumeProvider, balance,
                     _appSettings.Sync.Playback.BalanceMode);
 
-                _playbackEngine.EffectMixer.AddMixerInput(balanceProvider);
+                mixer.AddMixerInput(balanceProvider);
                 _logger.LogTrace("Play Dynamic: {Key} (Freq: {Freq:F1})", cachedAudio.SourceHash,
                     provider.FundamentalFrequency);
             }
@@ -146,7 +170,7 @@ public class SfxPlaybackService
             var balanceProvider = RecyclableSampleProviderFactory.RentBalanceProvider(volumeProvider, balance,
                 _appSettings.Sync.Playback.BalanceMode);
 
-            _playbackEngine.EffectMixer.AddMixerInput(balanceProvider);
+            mixer.AddMixerInput(balanceProvider);
         }
         catch (Exception ex)
         {

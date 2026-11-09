@@ -51,6 +51,9 @@ public class SyncSessionContext
     /// </summary>
     public bool IsAudioPaused => _isFrozen;
 
+    // Unlike IsAudioPaused, this does not treat brief clock interpolation corrections as pauses.
+    internal bool HasStalledGameplayClock => Stopwatch.GetElapsedTime(_anchorTick).TotalMilliseconds > 100;
+
     public int ProcessId { get; set; } = -1;
 
     public string? Username
