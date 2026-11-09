@@ -9,6 +9,7 @@ using KeyAsio.Sync.Abstractions;
 using KeyAsio.Sync.Models;
 using KeyAsio.Sync.Services;
 using KeyAsio.Sync.Sources;
+using KeyAsio.Sync.AudioProviders;
 using Microsoft.Extensions.Logging;
 
 namespace KeyAsio.Sync.States;
@@ -74,11 +75,15 @@ public class PlayingState : IGameState
 
     public void Exit(SyncSessionContext ctx, OsuMemoryStatus to)
     {
+        if (_gameplaySessionManager.CurrentHitsoundSequencer is ManiaHitsoundSequencer mania)
+            mania.ClearChordState();
     }
 
     public void OnTick(SyncSessionContext ctx, int prevMs, int currMs, bool isAudioPaused)
     {
         if (!ctx.IsStarted) return;
+        if (ctx.HasStalledGameplayClock && _gameplaySessionManager.CurrentHitsoundSequencer is ManiaHitsoundSequencer mania)
+            mania.ClearChordState();
 
         if (_lastIsReplay != ctx.IsReplay)
         {

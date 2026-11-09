@@ -149,6 +149,9 @@ public partial class AppSettingsSyncScanning : INotifyPropertyChanged
 
 public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
 {
+    [Description("Mania: play a chord's hitsounds together when its final required key is pressed. Incomplete chords stay silent.")]
+    public bool WaitForFinalChordKey { get; set; }
+
     [Description("Slider‑tail playback behavior. " +
                  "Normal: always play; KeepReverse: play only on multi‑reverse sliders; Ignore: never play.")]
     public SliderTailPlaybackBehavior TailPlaybackBehavior { get; set; } = SliderTailPlaybackBehavior.Normal;

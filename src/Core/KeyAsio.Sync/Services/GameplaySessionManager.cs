@@ -7,6 +7,7 @@ using KeyAsio.Core.Audio;
 using KeyAsio.Core.OsuAudio.Hitsounds;
 using KeyAsio.Core.OsuAudio.Hitsounds.Playback;
 using KeyAsio.Sync.Events;
+using KeyAsio.Sync.AudioProviders;
 using Microsoft.Extensions.Logging;
 
 namespace KeyAsio.Sync.Services;
@@ -123,6 +124,8 @@ public class GameplaySessionManager
                 : folder;
 
             PerformCache(folder, AudioFilename, resourceCatalog, cacheContextKey);
+            if (CurrentHitsoundSequencer is ManiaHitsoundSequencer mania)
+                mania.PrepareChordState();
             //ResetNodes(_syncSessionContext.PlayTime);
 
             _syncSessionContext.IsStarted = true;
