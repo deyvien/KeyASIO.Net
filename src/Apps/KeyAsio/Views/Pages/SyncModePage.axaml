@@ -101,7 +101,7 @@
               x:Name="OnlyPlayMatchingNotesSetting"
               Classes="Switch"
               Header="Only play hitsounds near note timing"
-              Description="Silence taps outside a note?s hit window. Turn off to hear normal tap feedback between notes."
+              Description="Silence taps outside a note’s hit window. Turn off to hear normal tap feedback between notes."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.OnlyPlayMatchingNotes}" />
           </StackPanel>
