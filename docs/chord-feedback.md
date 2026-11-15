@@ -53,3 +53,22 @@ note samples. A chord is defined by multiple chart lanes at the same head time,
 not by how many audio samples a note contains.
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/6.
+
+## Fallback hitsounds
+
+Enable **Sync Mode → Mania Hitsounds → Fallback hitsounds for silent notes**
+to use a default normal hit when a note's samples are missing, empty, digitally
+silent, or all have zero authored volume. It defaults to off and saves automatically.
+
+An audible component anywhere in that note prevents an added fallback. When all
+components are silent, only the first component receives the replacement, so a
+multi-sample note does not get several fallback sounds. Unprepared samples are
+not assumed silent. Storyboard samples and loop/control events are excluded.
+
+The fallback uses the game's default normal hitsound when available, otherwise
+KeyASIO's built-in generated normal hit. It follows the normal/chord volume and
+Master controls, along with the existing chord grouping and note-timing options.
+It does not bypass a user-muted volume. Ignore line volumes is respected when
+deciding whether the original sample is audible.
+
+Tracked by https://github.com/deyvien/KeyASIO.Net/issues/8.

@@ -17,13 +17,15 @@ public class SfxPlaybackService
     private readonly ILogger<SfxPlaybackService> _logger;
     private readonly IPlaybackEngine _playbackEngine;
     private readonly AppSettings _appSettings;
+    private readonly GameplayAudioService _gameplayAudioService;
 
     public SfxPlaybackService(ILogger<SfxPlaybackService> logger, IPlaybackEngine playbackEngine,
-        AppSettings appSettings)
+        AppSettings appSettings, GameplayAudioService gameplayAudioService)
     {
         _logger = logger;
         _playbackEngine = playbackEngine;
         _appSettings = appSettings;
+        _gameplayAudioService = gameplayAudioService;
 
         _appSettings.Sync.Playback.PropertyChanged += OnPlaybackSettingsChanged;
     }
@@ -55,6 +57,7 @@ public class SfxPlaybackService
 
     private void DispatchPlaybackTo(PlaybackInfo playbackInfo, IMixingSampleProvider mixer, float? overrideVolume = null)
     {
+        playbackInfo = _gameplayAudioService.ResolveFallback(playbackInfo);
         var cachedAudio = playbackInfo.CachedAudio;
         var hitsoundNode = playbackInfo.PlaybackEvent;
         if (hitsoundNode is SampleEvent playableNode)
@@ -66,7 +69,7 @@ public class SfxPlaybackService
             }
 
             float volume;
-            if (_appSettings.Sync.Filters.IgnoreLineVolumes)
+            if (playbackInfo.IsFallback || _appSettings.Sync.Filters.IgnoreLineVolumes)
             {
                 volume = 1;
             }

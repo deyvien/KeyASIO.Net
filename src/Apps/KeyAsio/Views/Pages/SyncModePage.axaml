@@ -111,6 +111,13 @@
               Description="Adjust Chords in the bottom-left volume box independently of normal hitsounds. Master volume affects both."
               Icon="VolumeHigh"
               IsChecked="{Binding AppSettings.Sync.Playback.UseSeparateChordVolume}" />
+            <controls:SettingItem
+              x:Name="UseFallbackHitsoundsSetting"
+              Classes="Switch"
+              Header="Fallback hitsounds for silent notes"
+              Description="Play a default hitsound when a note has no audible sample. Existing hitsounds are not doubled; normal and chord volume settings still apply."
+              Icon="MusicNote"
+              IsChecked="{Binding AppSettings.Sync.Playback.UseFallbackHitsounds}" />
           </StackPanel>
         </suki:GroupBox>
       </suki:GlassCard>

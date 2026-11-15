@@ -9,6 +9,7 @@ using KeyAsio.Core.OsuAudio.Hitsounds;
 using KeyAsio.Core.OsuAudio.Hitsounds.Playback;
 using KeyAsio.Core.OsuAudio.Utils;
 using KeyAsio.Sync.Abstractions;
+using KeyAsio.Sync.Models;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 
@@ -24,6 +25,9 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
     private OsuAudioFileCache _osuAudioFileCache = new();
     private readonly ConcurrentDictionary<PlaybackEvent, CachedAudio> _playNodeToCachedAudioMapping = new();
     private readonly ConcurrentDictionary<string, CachedAudio> _filenameToCachedAudioMapping = new();
+    private readonly ConcurrentDictionary<Guid, SampleEvent[]> _noteSamples = new();
+    private readonly ConcurrentDictionary<CachedAudio, bool> _sampleAudibility = new();
+    private CachedAudio? _defaultFallback;
 
     private readonly ILogger<GameplayAudioService> _logger;
     private readonly SyncSessionContext _syncSessionContext;
@@ -84,6 +88,10 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
 
     public void ClearCaches()
     {
+        if (_defaultFallback?.SourceHash?.StartsWith("internal://dynamic/", StringComparison.Ordinal) == true)
+            _defaultFallback.Dispose();
+        _defaultFallback = null;
+        _sampleAudibility.Clear();
         _osuAudioFileCache = new OsuAudioFileCache();
         _audioCacheManager.ClearAll();
         _playNodeToCachedAudioMapping.Clear();
@@ -94,6 +102,72 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
     {
         if (!_playNodeToCachedAudioMapping.TryGetValue(node, out cachedAudio)) return false;
         return true;
+    }
+
+    public void RegisterNoteSamples(IEnumerable<SampleEvent> samples)
+    {
+        _noteSamples.Clear();
+        foreach (var group in samples.Where(x => x.Layer == SampleLayer.Primary).GroupBy(x => x.Guid))
+            _noteSamples[group.Key] = group.ToArray();
+    }
+
+    public PlaybackInfo ResolveFallback(PlaybackInfo playback)
+    {
+        if (!_appSettings.Sync.Playback.UseFallbackHitsounds ||
+            playback.PlaybackEvent is not SampleEvent { Layer: SampleLayer.Primary } note ||
+            !_noteSamples.TryGetValue(note.Guid, out var siblings) || siblings.Length == 0 ||
+            !ReferenceEquals(note, siblings[0])) return playback;
+
+        var fallback = _defaultFallback;
+        if (fallback == null || fallback.IsDisposingOrDisposed) return playback;
+        foreach (var sibling in siblings)
+        {
+            // Unknown/unprepared siblings cannot be assumed silent.
+            if (!_playNodeToCachedAudioMapping.TryGetValue(sibling, out var audio) ||
+                !_sampleAudibility.TryGetValue(audio, out var audible)) return playback;
+            if (audible && (_appSettings.Sync.Filters.IgnoreLineVolumes || sibling.Volume > 0)) return playback;
+        }
+
+        return playback with { CachedAudio = fallback, IsFallback = true };
+    }
+
+    // Called only by cache preparation, never by the input or device callback.
+    private void CacheAudibility(CachedAudio audio)
+    {
+        _sampleAudibility.GetOrAdd(audio, static sound =>
+        {
+            if (sound.SourceHash?.StartsWith("internal://dynamic/", StringComparison.Ordinal) == true) return true;
+            if (!sound.TryAcquireSpan(out var pcm)) return false;
+            try
+            {
+                byte silence = sound.WaveFormat.BitsPerSample == 8 ? (byte)128 : (byte)0;
+                foreach (byte value in pcm)
+                    if (value != silence) return true;
+                return false;
+            }
+            finally { sound.ReleaseSpan(); }
+        });
+    }
+
+    private async Task PrepareDefaultFallbackAsync(WaveFormat waveFormat)
+    {
+        if (_defaultFallback is { IsDisposingOrDisposed: false } current &&
+            current.WaveFormat.SampleRate == waveFormat.SampleRate && current.WaveFormat.Channels == waveFormat.Channels) return;
+        const string key = "normal-hitnormal";
+        byte[]? bytes = null;
+        if (_syncSessionContext.ClientType == KeyAsio.Configuration.Models.GameClientType.Lazer)
+            _skinResources.TryGetLazerResource("{lazer-classic}", key, out bytes!);
+        if (bytes == null) _skinResources.TryGetStableResource(key, out bytes!);
+        CachedAudio? fallback = null;
+        if (bytes != null)
+        {
+            using var stream = new MemoryStream(bytes);
+            fallback = await LoadAndCacheAudioFromStreamAsync("fallback://normal-hitnormal", stream, "fallback", waveFormat);
+            CacheAudibility(fallback);
+            if (!_sampleAudibility[fallback]) fallback = null;
+        }
+        // The existing built-in normal hit remains available when game resources cannot be extracted.
+        _defaultFallback = fallback ?? _audioCacheManager.CreateDynamic("internal://dynamic/normal-hitnormal", waveFormat);
     }
 
     public bool TryGetCachedAudio(string filenameWithoutExt, out CachedAudio? cachedAudio)
@@ -216,6 +290,7 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
 
             try
             {
+                await PrepareDefaultFallbackAsync(waveFormat);
                 foreach (var node in nodesToCache)
                 {
                     if (token.IsCancellationRequested) break;
@@ -291,6 +366,7 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
             }
 
             var cacheResult = await _audioCacheManager.GetOrCreateEmptyAsync("null", waveFormat);
+            CacheAudibility(cacheResult.CachedAudio!);
             _playNodeToCachedAudioMapping.TryAdd(playbackEvent, cacheResult.CachedAudio!);
             return;
         }
@@ -315,6 +391,7 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
             result = await LoadAndCacheAudioAsync(path, category, waveFormat);
         }
 
+        CacheAudibility(result);
         _playNodeToCachedAudioMapping.TryAdd(playbackEvent, result);
         _filenameToCachedAudioMapping.TryAdd(playbackEvent.Filename, result);
     }
@@ -452,5 +529,7 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
         _skinResources.ResourcesChanged -= OnSkinResourcesChanged;
         _cachingWorker.Dispose();
         _skinCachingWorker.Dispose();
+        if (_defaultFallback?.SourceHash?.StartsWith("internal://dynamic/", StringComparison.Ordinal) == true)
+            _defaultFallback.Dispose();
     }
 }

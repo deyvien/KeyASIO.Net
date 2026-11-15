@@ -6,4 +6,5 @@ namespace KeyAsio.Sync.Models;
 public readonly record struct PlaybackInfo(CachedAudio? CachedAudio, PlaybackEvent PlaybackEvent)
 {
     public bool IsChord { get; init; }
+    public bool IsFallback { get; init; }
 }

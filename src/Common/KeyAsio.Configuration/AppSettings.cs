@@ -161,6 +161,9 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Use the separate Chords fader for mania chord notes, independently of final-key grouping.")]
     public bool UseSeparateChordVolume { get; set; }
 
+    [Description("Use a default hitsound when all samples belonging to a note are missing or silent. Existing audible note sounds are not doubled.")]
+    public bool UseFallbackHitsounds { get; set; }
+
     [Description("Slider‑tail playback behavior. " +
                  "Normal: always play; KeepReverse: play only on multi‑reverse sliders; Ignore: never play.")]
     public SliderTailPlaybackBehavior TailPlaybackBehavior { get; set; } = SliderTailPlaybackBehavior.Normal;

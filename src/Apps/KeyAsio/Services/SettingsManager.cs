@@ -115,7 +115,8 @@ public class SettingsManager : IDisposable
             else if (e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceFactor) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceMode) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey) ||
-                e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes))
+                e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.UseFallbackHitsounds))
             {
                 DebounceSave();
             }

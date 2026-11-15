@@ -27,7 +27,9 @@ public sealed class ManiaChordIntegrationTests
     [InlineData(true, false, true)]
     [InlineData(false, true, true)]
     [InlineData(true, true, true)]
-    public async Task TapFeedbackAndChordGroupingAreIndependent(bool grouped, bool noteOnly, bool separateVolume)
+    [InlineData(true, false, true, true)]
+    [InlineData(false, true, true, true)]
+    public async Task TapFeedbackAndChordGroupingAreIndependent(bool grouped, bool noteOnly, bool separateVolume, bool fallback = false)
     {
         var folder = Directory.CreateTempSubdirectory().FullName;
         try
@@ -62,12 +64,15 @@ public sealed class ManiaChordIntegrationTests
                 """);
             var format = new WaveFormat(48000, 16, 2);
             using (var writer = new WaveFileWriter(Path.Combine(folder, "test.wav"), format))
+                writer.WriteSamples(Enumerable.Repeat(fallback ? 0 : .2f, 64).ToArray(), 0, 64);
+            using (var writer = new WaveFileWriter(Path.Combine(folder, "default.wav"), format))
                 writer.WriteSamples(Enumerable.Repeat(.2f, 64).ToArray(), 0, 64);
 
             var settings = new AppSettings();
             settings.Sync.Playback.WaitForFinalChordKey = grouped;
             settings.Sync.Playback.OnlyPlayMatchingNotes = noteOnly;
             settings.Sync.Playback.UseSeparateChordVolume = separateVolume;
+            settings.Sync.Playback.UseFallbackHitsounds = fallback;
             var ctx = new SyncSessionContext(settings) { OsuStatus = OsuMemoryStatus.Playing, IsStarted = true };
             var mixer = new QueueMixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)) { ReadFully = true };
             var chordMixer = new QueueMixingSampleProvider(mixer.WaveFormat) { ReadFully = true };
@@ -79,18 +84,22 @@ public sealed class ManiaChordIntegrationTests
             engine.SetupGet(x => x.ChordMixer).Returns(chordMixer);
             var runtime = new Mock<IPlaybackRuntimeState>();
             runtime.SetupGet(x => x.SelectedSkinFolder).Returns(folder);
+            byte[] defaultBytes = File.ReadAllBytes(Path.Combine(folder, "default.wav"));
+            var resources = new Mock<ISkinResourceProvider>();
+            resources.Setup(x => x.TryGetStableResource("normal-hitnormal", out defaultBytes)).Returns(true);
             using var audio = new GameplayAudioService(NullLogger<GameplayAudioService>.Instance, ctx, settings,
                 engine.Object, new AudioCacheManager(NullLogger<AudioCacheManager>.Instance), runtime.Object,
-                Mock.Of<ISkinResourceProvider>());
+                resources.Object);
             audio.SetContext(folder, "test.wav");
             var loader = new BeatmapHitsoundLoader(NullLogger<BeatmapHitsoundLoader>.Instance, settings, audio);
-            var sfx = new SfxPlaybackService(NullLogger<SfxPlaybackService>.Instance, engine.Object, settings);
+            var sfx = new SfxPlaybackService(NullLogger<SfxPlaybackService>.Instance, engine.Object, settings, audio);
             var session = new GameplaySessionManager(NullLogger<GameplaySessionManager>.Instance, audio,
                 engine.Object, ctx, loader, sfx) { OsuFile = await OsuFile.ReadFromFileAsync(mapPath) };
             var sequencer = new ManiaHitsoundSequencer(NullLogger<ManiaHitsoundSequencer>.Instance,
                 settings, ctx, engine.Object, audio, session);
             foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (3000, .75f), (4000, .75f)})
                 session.KeyList.Add(PlaybackEvent.Create(Guid.NewGuid(), time, 1, balance, "test.wav", ResourceOwner.Beatmap, SampleLayer.Primary));
+            audio.RegisterNoteSamples(session.KeyList);
             audio.PrecacheHitsoundsRangeInBackground(0, 5000, session.KeyList);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             while (!session.KeyList.All(x => audio.TryGetAudioByNode(x, out _)))
