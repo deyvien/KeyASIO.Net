@@ -71,6 +71,7 @@ public class BeatmapHitsoundLoader
         }
 
         hitsoundSequencer.FillAudioList(hitsoundList, _keyList, _playbackList);
+        _gameplayAudioService.RegisterNoteSamples(_keyList);
         return osuFile;
     }
 
