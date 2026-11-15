@@ -31,6 +31,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
     private ManiaChordGate? _chordGate;
     private OsuFile? _chordMap;
     private int _chordSeekTime;
+    private readonly List<PlaybackInfo> _immediateBuffer = new(8);
 
     public ManiaHitsoundSequencer(ILogger<ManiaHitsoundSequencer> logger,
         AppSettings appSettings,
@@ -47,7 +48,8 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         _gameplaySessionManager = gameplaySessionManager;
         appSettings.Sync.Playback.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey))
+            if (e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes))
             {
                 ClearChordState();
                 PrepareChordState();
@@ -104,12 +106,17 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
 
     public void ProcessInteraction(List<PlaybackInfo> buffer, int keyIndex, int keyTotal)
     {
-        if (_appSettings.Sync.Playback.WaitForFinalChordKey)
+        if (_appSettings.Sync.Playback.WaitForFinalChordKey || _appSettings.Sync.Playback.OnlyPlayMatchingNotes)
         {
             ProcessChordInteraction(buffer, keyIndex);
             return;
         }
 
+        ProcessImmediateInteraction(buffer, keyIndex);
+    }
+
+    private void ProcessImmediateInteraction(List<PlaybackInfo> buffer, int keyIndex)
+    {
         using var _ = DebugUtils.CreateTimer($"GetSoundOnClick", _logger);
         var playTime = _syncSessionContext.PlayTime;
         var isStarted = _syncSessionContext.IsStarted;
@@ -126,7 +133,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
             return;
         }
 
-        if (_hitQueue.Count - 1 < keyIndex || _hitQueueCache.Length - 1 < keyIndex)
+        if (keyIndex < 0 || _hitQueue.Count - 1 < keyIndex || _hitQueueCache.Length - 1 < keyIndex)
         {
             _logger.LogWarning(
                 "Key index was out of range ({KeyIndex}). Please check your key configuration to match mania columns.",
@@ -255,7 +262,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         lock (_chordLock)
         {
             var map = _gameplaySessionManager.OsuFile;
-            if (!_appSettings.Sync.Playback.WaitForFinalChordKey || map?.HitObjects == null ||
+            if ((!_appSettings.Sync.Playback.WaitForFinalChordKey && !_appSettings.Sync.Playback.OnlyPlayMatchingNotes) || map?.HitObjects == null ||
                 (_chordGate != null && ReferenceEquals(_chordMap, map))) return;
             int columns = (int)map.Difficulty.CircleSize;
             if (columns < 1 || columns > 18) return;
@@ -281,19 +288,35 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         {
             var ctx = _syncSessionContext;
             var map = _gameplaySessionManager.OsuFile;
+            bool onlyNotes = _appSettings.Sync.Playback.OnlyPlayMatchingNotes;
+            bool groupChords = _appSettings.Sync.Playback.WaitForFinalChordKey;
             if (!ctx.IsStarted || ctx.OsuStatus != KeyAsio.Plugins.Contracts.Sync.OsuMemoryStatus.Playing ||
-                ctx.IsReplay || (ctx.PlayMods & (Mods.Autoplay | Mods.Relax)) != 0 ||
                 ctx.HasStalledGameplayClock || _playbackEngine.CurrentDevice == null || map?.HitObjects == null)
             {
                 _chordGate?.CancelPending();
+                if (!onlyNotes) ProcessImmediateInteraction(buffer, lane);
                 return;
             }
 
+            // Advance the original lane resolver on every tap, including delayed chord taps.
+            // This preserves sample selection when filtering is off or settings change mid-map.
+            _immediateBuffer.Clear();
+            ProcessImmediateInteraction(_immediateBuffer, lane);
             PrepareChordState();
-            if (_chordGate == null) return;
+            if (_chordGate == null)
+            {
+                if (!onlyNotes) buffer.AddRange(_immediateBuffer);
+                return;
+            }
 
-            foreach (var node in _chordGate.Press(lane, ctx.PlayTime,
-                         ChordWindow(map.Difficulty.OverallDifficulty, ctx.PlayMods)))
+            var result = _chordGate.ProcessPress(lane, ctx.PlayTime,
+                ChordWindow(map.Difficulty.OverallDifficulty, ctx.PlayMods), groupChords);
+            if (!onlyNotes && !(groupChords && result.MatchesNote && result.IsChord))
+            {
+                buffer.AddRange(_immediateBuffer);
+                return;
+            }
+            foreach (var node in result.Samples)
             {
                 if (_gameplayAudioService.TryGetAudioByNode(node, out var audio))
                     buffer.Add(new PlaybackInfo(audio, node));
