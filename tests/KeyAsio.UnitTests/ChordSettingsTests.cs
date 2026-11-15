@@ -22,21 +22,29 @@ public sealed class ChordSettingsTests
             var converter = MyYamlConfigurationConverter.Instance;
             var settings = ConfigurationFactory.GetConfiguration<AppSettings>(folder, "appsettings.yaml", converter);
             Assert.False(settings.Sync.Playback.RampSingleNoteVolume);
+            Assert.False(settings.Sync.Playback.RampChordVolume);
+            Assert.False(settings.Sync.Playback.AnyVolumeRampActive);
             Assert.Equal(3, settings.Sync.Playback.SingleNoteRampNotes);
             using var manager = new SettingsManager(NullLogger<SettingsManager>.Instance, settings,
                 Mock.Of<IPlaybackEngine>(), Mock.Of<ISukiToastManager>());
             foreach (var curve in Enum.GetValues<KeyAsio.Configuration.Models.SingleNoteRampCurve>())
             {
                 settings.Sync.Playback.RampSingleNoteVolume = true;
+                settings.Sync.Playback.RampChordVolume = curve == KeyAsio.Configuration.Models.SingleNoteRampCurve.Exponential;
                 settings.Sync.Playback.SingleNoteRampCurve = curve;
                 settings.Sync.Playback.SingleNoteRampNotes = curve == KeyAsio.Configuration.Models.SingleNoteRampCurve.Linear ? 3 : 10;
                 await Task.Delay(750);
                 Dispatcher.UIThread.RunJobs();
                 var saved = (AppSettings)converter.DeserializeSettings(await File.ReadAllTextAsync(Path.Combine(folder, "appsettings.yaml")), typeof(AppSettings));
                 Assert.True(saved.Sync.Playback.RampSingleNoteVolume);
+                Assert.Equal(settings.Sync.Playback.RampChordVolume, saved.Sync.Playback.RampChordVolume);
                 Assert.Equal(curve, saved.Sync.Playback.SingleNoteRampCurve);
                 Assert.Equal(settings.Sync.Playback.SingleNoteRampNotes, saved.Sync.Playback.SingleNoteRampNotes);
             }
+            settings.Sync.Playback.RampSingleNoteVolume = false;
+            Assert.True(settings.Sync.Playback.AnyVolumeRampActive); // Chords independently keep the shared controls active.
+            settings.Sync.Playback.RampChordVolume = false;
+            Assert.False(settings.Sync.Playback.AnyVolumeRampActive);
         }
         finally { Directory.Delete(folder, true); }
     }

@@ -112,7 +112,8 @@ public sealed class FallbackHitsoundTests
     [InlineData(false, .5f)]
     [InlineData(true, .5f)]
     [InlineData(true, 1f)]
-    public async Task RampedSingleUsesMapperVolumeAsCeilingEvenWhenLineVolumesAreIgnored(bool ignore, float gain)
+    [InlineData(true, .5f, true)]
+    public async Task RampedNoteUsesMapperVolumeAsCeilingEvenWhenLineVolumesAreIgnored(bool ignore, float gain, bool chord = false)
     {
         using var f = new Fixture();
         f.Write("note.wav", .25f);
@@ -120,7 +121,7 @@ public sealed class FallbackHitsoundTests
         f.Audio.RegisterNoteSamples([note]);
         await f.Cache(note);
         f.Settings.Sync.Filters.IgnoreLineVolumes = ignore;
-        f.Sfx.DispatchPlayback(f.Playback(note) with { SingleNoteRampGain = gain });
+        f.Sfx.DispatchPlayback(f.Playback(note) with { VolumeRampGain = gain, IsChord = chord });
         Assert.Equal(.25f * .4f * gain, f.Render(), 3);
     }
 
@@ -136,7 +137,7 @@ public sealed class FallbackHitsoundTests
         var note = Note("missing.wav", volume: mapperVolume);
         f.Audio.RegisterNoteSamples([note]);
         await f.Cache(note);
-        f.Sfx.DispatchPlayback(f.Playback(note) with { SingleNoteRampGain = .5f });
+        f.Sfx.DispatchPlayback(f.Playback(note) with { VolumeRampGain = .5f });
         Assert.InRange(Math.Abs(expected - f.Render()), 0, 1f / 32768); // Allow one 16-bit PCM quantization step.
     }
 

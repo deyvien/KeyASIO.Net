@@ -4,12 +4,35 @@ using KeyAsio.Sync.AudioProviders;
 
 namespace KeyAsio.UnitTests;
 
-public sealed class SingleNoteVolumeRampTests
+public sealed class NoteVolumeRampTests
 {
+    [Fact]
+    public void InterleavedChordLanesReuseTheirAssignedGain()
+    {
+        var ramp = new NoteVolumeRamp();
+        Assert.Equal(1f / 3, ramp.Advance(0, 1000, SingleNoteRampCurve.Linear, 3), 6);
+        Assert.Equal(2f / 3, ramp.Advance(0, 1100, SingleNoteRampCurve.Linear, 3), 6);
+        Assert.Equal(1f / 3, ramp.Advance(0, 1000, SingleNoteRampCurve.Linear, 3), 6);
+        Assert.Equal(2f / 3, ramp.Advance(0, 1100, SingleNoteRampCurve.Linear, 3), 6);
+        Assert.Equal(1, ramp.Advance(0, 1200, SingleNoteRampCurve.Linear, 3));
+    }
+
+    [Fact]
+    public void ChordRunChangesAtSinglesNotAtDifferentChordSizes()
+    {
+        var gate = new ManiaChordGate([(1000, 0), (1000, 1), (1500, 0), (1500, 1), (1500, 2),
+            (2000, 3), (2500, 0), (2500, 1)], [], 4, 0);
+        var a = gate.ProcessPress(0, 1000, 130, false);
+        var b = gate.ProcessPress(0, 1500, 130, false);
+        var c = gate.ProcessPress(0, 2500, 130, false);
+        Assert.Equal(a.ChordRun, b.ChordRun);
+        Assert.NotEqual(b.ChordRun, c.ChordRun);
+    }
+
     [Fact]
     public void LinearThreeReachesCeilingOnThirdNoteAndStaysThere()
     {
-        var ramp = new SingleNoteVolumeRamp();
+        var ramp = new NoteVolumeRamp();
         Assert.Equal(1f / 3, ramp.Advance(0, 1000, SingleNoteRampCurve.Linear, 3), 6);
         Assert.Equal(2f / 3, ramp.Advance(0, 1100, SingleNoteRampCurve.Linear, 3), 6);
         Assert.Equal(1, ramp.Advance(0, 5000, SingleNoteRampCurve.Linear, 3)); // Spacing does not define a stream.
@@ -19,7 +42,7 @@ public sealed class SingleNoteVolumeRampTests
     [Fact]
     public void ExponentialTenHasConstantRatioAndReachesCeilingOnTenth()
     {
-        var ramp = new SingleNoteVolumeRamp();
+        var ramp = new NoteVolumeRamp();
         var gains = Enumerable.Range(1, 11)
             .Select(i => ramp.Advance(0, i * 100, SingleNoteRampCurve.Exponential, 10)).ToArray();
         Assert.Equal(.1f, gains[0], 6);
@@ -36,7 +59,7 @@ public sealed class SingleNoteVolumeRampTests
     [Fact]
     public void SameHeadCountsOnceButNewChartSegmentStartsOver()
     {
-        var ramp = new SingleNoteVolumeRamp();
+        var ramp = new NoteVolumeRamp();
         Assert.Equal(.25f, ramp.Advance(0, 1000, SingleNoteRampCurve.Linear, 4));
         Assert.Equal(.25f, ramp.Advance(0, 1000, SingleNoteRampCurve.Linear, 4));
         Assert.Equal(.5f, ramp.Advance(0, 1001, SingleNoteRampCurve.Linear, 4));
@@ -48,9 +71,10 @@ public sealed class SingleNoteVolumeRampTests
     [Fact]
     public void RetryAndCurveOrCountChangesResetProgress()
     {
-        var ramp = new SingleNoteVolumeRamp();
+        var ramp = new NoteVolumeRamp();
         ramp.Advance(0, 2000, SingleNoteRampCurve.Linear, 3);
         ramp.Advance(0, 3000, SingleNoteRampCurve.Linear, 3);
+        ramp.Reset(); // The sequencer explicitly resets the ramp on seek/retry.
         Assert.Equal(1f / 3, ramp.Advance(0, 1000, SingleNoteRampCurve.Linear, 3), 6);
         Assert.Equal(.1f, ramp.Advance(0, 4000, SingleNoteRampCurve.Linear, 10), 6);
         Assert.Equal(.1f, ramp.Advance(0, 5000, SingleNoteRampCurve.Exponential, 10), 6);
@@ -62,7 +86,7 @@ public sealed class SingleNoteVolumeRampTests
     [InlineData(SingleNoteRampCurve.Linear, 0)]
     [InlineData(SingleNoteRampCurve.Exponential, -5)]
     public void OneNoteOrInvalidLowCountIsFullVolume(SingleNoteRampCurve curve, int count)
-        => Assert.Equal(1, new SingleNoteVolumeRamp().Advance(0, 1000, curve, count));
+        => Assert.Equal(1, new NoteVolumeRamp().Advance(0, 1000, curve, count));
 
     [Fact]
     public void ChartChordsBreakRunsEvenIfTheyAreNeverPressed()

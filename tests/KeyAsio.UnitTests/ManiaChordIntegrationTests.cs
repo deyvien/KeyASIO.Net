@@ -59,6 +59,9 @@ public sealed class ManiaChordIntegrationTests
                 320,192,1000,1,0,0:0:0:0:
                 64,192,2000,1,0,0:0:0:0:
                 320,192,2000,1,0,0:0:0:0:
+                64,192,2500,1,0,0:0:0:0:
+                320,192,2500,1,0,0:0:0:0:
+                448,192,2500,1,0,0:0:0:0:
                 448,192,3000,1,0,0:0:0:0:
                 448,192,4000,1,0,0:0:0:0:
                 64,192,5000,1,0,0:0:0:0:
@@ -106,7 +109,7 @@ public sealed class ManiaChordIntegrationTests
                 engine.Object, ctx, loader, sfx) { OsuFile = await OsuFile.ReadFromFileAsync(mapPath) };
             var sequencer = new ManiaHitsoundSequencer(NullLogger<ManiaHitsoundSequencer>.Instance,
                 settings, ctx, engine.Object, audio, session);
-            foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (3000, .75f), (4000, .75f), (5000, -.75f), (5100, -.25f), (6000, -.75f), (6000, .25f), (6500, .25f), (7000, -.25f), (7000, .75f), (8000, -.75f), (9000, -.25f)})
+            foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (2500, -.75f), (2500, .25f), (2500, .75f), (3000, .75f), (4000, .75f), (5000, -.75f), (5100, -.25f), (6000, -.75f), (6000, .25f), (6500, .25f), (7000, -.25f), (7000, .75f), (8000, -.75f), (9000, -.25f)})
                 session.KeyList.Add(PlaybackEvent.Create(Guid.NewGuid(), time, 1, balance, "test.wav", ResourceOwner.Beatmap, SampleLayer.Primary));
             audio.RegisterNoteSamples(session.KeyList);
             audio.PrecacheHitsoundsRangeInBackground(0, 10000, session.KeyList);
@@ -131,7 +134,7 @@ public sealed class ManiaChordIntegrationTests
             }
             Press(3, 510);
             Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
-            if (!noteOnly) Assert.Same(session.KeyList[4], buffer[0].PlaybackEvent);
+            if (!noteOnly) Assert.Same(session.KeyList.First(x => x.Offset == 2500 && x.Balance == .75f), buffer[0].PlaybackEvent);
 
             Press(0, 990);
             Assert.Equal(grouped ? 0 : 1, buffer.Count);
@@ -159,7 +162,7 @@ public sealed class ManiaChordIntegrationTests
             Assert.False(buffer[0].IsChord);
             Press(3, 3001); // Repeated single taps retain the normal next-sample fallback unless filtered.
             Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
-            if (!noteOnly) Assert.Same(session.KeyList[5], buffer[0].PlaybackEvent);
+            if (!noteOnly) Assert.Same(session.KeyList.First(x => x.Offset == 4000), buffer[0].PlaybackEvent);
 
             // Switching policies cancels a partial group, including one started ungrouped.
             sequencer.SeekTo(0);
@@ -202,40 +205,88 @@ public sealed class ManiaChordIntegrationTests
             settings.Sync.Playback.WaitForFinalChordKey = grouped;
             sequencer.SeekTo(0);
             Press(0, 500);
-            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain));
+            Assert.All(buffer, x => Assert.Null(x.VolumeRampGain));
             Press(3, 3000);
-            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(1f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             Press(3, 3001);
-            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain)); // Free repeats do not advance the ramp.
+            Assert.All(buffer, x => Assert.Null(x.VolumeRampGain)); // Free repeats do not advance the ramp.
             Press(3, 4000);
-            Assert.Equal(2f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(2f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             Press(0, 5000);
-            Assert.Equal(1, Assert.Single(buffer).SingleNoteRampGain);
+            Assert.Equal(1, Assert.Single(buffer).VolumeRampGain);
             Press(1, 5100);
-            Assert.Equal(1, Assert.Single(buffer).SingleNoteRampGain);
+            Assert.Equal(1, Assert.Single(buffer).VolumeRampGain);
             Press(0, 6000);
-            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain));
+            Assert.All(buffer, x => Assert.Null(x.VolumeRampGain));
             Press(2, 6020);
-            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain)); // Chords themselves are unchanged.
+            Assert.All(buffer, x => Assert.Null(x.VolumeRampGain)); // Chords themselves are unchanged.
             Press(2, 6500);
-            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(1f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             Press(0, 8000); // Unplayed chord at 7000 still separates the runs.
-            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(1f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             sequencer.ClearChordState();
             Press(1, 9000);
-            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(1f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             sequencer.SeekTo(0);
             Press(3, 3000);
-            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(1f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             settings.Sync.Playback.SingleNoteRampNotes = 10;
             Press(3, 4000);
-            Assert.Equal(.1f, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(.1f, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             settings.Sync.Playback.SingleNoteRampCurve = KeyAsio.Configuration.Models.SingleNoteRampCurve.Exponential;
             Press(0, 5000);
-            Assert.Equal(.1f, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Assert.Equal(.1f, Assert.Single(buffer).VolumeRampGain!.Value, 6);
             settings.Sync.Playback.RampSingleNoteVolume = false;
             Press(1, 5100);
-            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain));
+            Assert.All(buffer, x => Assert.Null(x.VolumeRampGain));
+
+            // Chords use the same configured curve/count, once per chord rather than once per lane.
+            settings.Sync.Playback.RampChordVolume = true;
+            settings.Sync.Playback.SingleNoteRampCurve = KeyAsio.Configuration.Models.SingleNoteRampCurve.Linear;
+            settings.Sync.Playback.SingleNoteRampNotes = 3;
+            settings.Sync.Playback.WaitForFinalChordKey = grouped;
+            settings.Sync.Playback.OnlyPlayMatchingNotes = true;
+            sequencer.SeekTo(0);
+            void CheckChordGain(float gain)
+            {
+                Assert.NotEmpty(buffer);
+                Assert.All(buffer, x => { Assert.True(x.IsChord); Assert.Equal(gain, x.VolumeRampGain!.Value, 6); });
+            }
+            Press(0, 990);
+            if (grouped) Assert.Empty(buffer); else CheckChordGain(1f / 3);
+            Press(2, 1010);
+            CheckChordGain(1f / 3);
+            Press(0, 1990);
+            if (grouped) Assert.Empty(buffer); else CheckChordGain(2f / 3);
+            Press(2, 2010);
+            CheckChordGain(2f / 3);
+            Press(0, 2490);
+            if (grouped) Assert.Empty(buffer); else CheckChordGain(1);
+            Press(2, 2500);
+            if (grouped) Assert.Empty(buffer); else CheckChordGain(1);
+            Press(3, 2520);
+            CheckChordGain(1); // Three-key chord still counts as one event.
+            Press(3, 3000);
+            Assert.Null(Assert.Single(buffer).VolumeRampGain); // Single toggle is off.
+            Press(0, 5990);
+            Press(2, 6020);
+            CheckChordGain(1f / 3);
+            Press(1, 6990); // Skipped single at 6500 still breaks the chord run.
+            Press(3, 7020);
+            CheckChordGain(1f / 3);
+            sequencer.SeekTo(0);
+            Press(0, 990); // Leave the first chord incomplete.
+            Press(0, 1990);
+            Press(2, 2010);
+            CheckChordGain(grouped ? 1f / 3 : 2f / 3);
+            settings.Sync.Playback.SingleNoteRampCurve = KeyAsio.Configuration.Models.SingleNoteRampCurve.Exponential;
+            settings.Sync.Playback.SingleNoteRampNotes = 10;
+            sequencer.SeekTo(0);
+            Press(0, 990); Press(2, 1010);
+            CheckChordGain(.1f);
+            Press(0, 1990); Press(2, 2010);
+            CheckChordGain((float)Math.Pow(10, -8d / 9));
+            settings.Sync.Playback.RampChordVolume = false;
 
             settings.Sync.Playback.UseSeparateChordVolume = true;
             settings.Sync.Playback.WaitForFinalChordKey = true;

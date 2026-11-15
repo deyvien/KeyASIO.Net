@@ -170,9 +170,15 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Ramp consecutive played single notes up to each note's authored volume. Chords reset the ramp and are not ramped.")]
     public bool RampSingleNoteVolume { get; set; }
 
+    [Description("Ramp consecutive chords using the shared curve and count. Each chord counts once; single notes reset the run.")]
+    public bool RampChordVolume { get; set; }
+
+    [YamlDotNet.Serialization.YamlIgnore]
+    public bool AnyVolumeRampActive => RampSingleNoteVolume || RampChordVolume;
+
     public SingleNoteRampCurve SingleNoteRampCurve { get; set; } = SingleNoteRampCurve.Linear;
 
-    [Description("Number of played single notes to reach authored volume, from 1 to 1000.")]
+    [Description("Number of played single notes or chords in a same-type run to reach authored volume, from 1 to 1000.")]
     public int SingleNoteRampNotes { get; set; } = 3;
 
     [Description("Slider‑tail playback behavior. " +
