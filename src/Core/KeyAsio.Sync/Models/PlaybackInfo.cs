@@ -7,4 +7,5 @@ public readonly record struct PlaybackInfo(CachedAudio? CachedAudio, PlaybackEve
 {
     public bool IsChord { get; init; }
     public bool IsFallback { get; init; }
+    public float? SingleNoteRampGain { get; init; }
 }

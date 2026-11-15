@@ -32,6 +32,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
     private OsuFile? _chordMap;
     private int _chordSeekTime;
     private readonly List<PlaybackInfo> _immediateBuffer = new(8);
+    private readonly SingleNoteVolumeRamp _singleNoteRamp = new();
 
     public ManiaHitsoundSequencer(ILogger<ManiaHitsoundSequencer> logger,
         AppSettings appSettings,
@@ -56,6 +57,13 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
             }
             else if (e.PropertyName == nameof(AppSettingsSyncPlayback.UseSeparateChordVolume))
                 PrepareChordState();
+            else if (e.PropertyName == nameof(AppSettingsSyncPlayback.RampSingleNoteVolume) ||
+                     e.PropertyName == nameof(AppSettingsSyncPlayback.SingleNoteRampCurve) ||
+                     e.PropertyName == nameof(AppSettingsSyncPlayback.SingleNoteRampNotes))
+            {
+                lock (_chordLock) _singleNoteRamp.Reset();
+                PrepareChordState();
+            }
         };
         appSettings.Sync.PropertyChanged += (_, e) =>
         {
@@ -68,6 +76,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                 _chordGate = null;
                 _chordMap = null;
                 _chordSeekTime = 0;
+                _singleNoteRamp.Reset();
             }
         };
         syncSessionContext.OnPlayModsChanged += (_, _) => { ClearChordState(); return Task.CompletedTask; };
@@ -109,7 +118,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
     public void ProcessInteraction(List<PlaybackInfo> buffer, int keyIndex, int keyTotal)
     {
         if (_appSettings.Sync.Playback.WaitForFinalChordKey || _appSettings.Sync.Playback.OnlyPlayMatchingNotes ||
-            _appSettings.Sync.Playback.SeparateChordVolumeActive)
+            _appSettings.Sync.Playback.SeparateChordVolumeActive || _appSettings.Sync.Playback.RampSingleNoteVolume)
         {
             ProcessChordInteraction(buffer, keyIndex);
             return;
@@ -222,6 +231,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
             _chordSeekTime = playTime;
             _chordGate = null;
             _chordMap = null;
+            _singleNoteRamp.Reset();
         }
         _hitQueue = GetHitQueue(_gameplaySessionManager.KeyList, playTime);
         _hitQueueCache = new SampleEvent[_hitQueue.Count];
@@ -257,7 +267,11 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
 
     internal void ClearChordState()
     {
-        lock (_chordLock) _chordGate?.CancelPending();
+        lock (_chordLock)
+        {
+            _chordGate?.CancelPending();
+            _singleNoteRamp.Reset();
+        }
     }
 
     internal void PrepareChordState()
@@ -266,7 +280,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         {
             var map = _gameplaySessionManager.OsuFile;
             if ((!_appSettings.Sync.Playback.WaitForFinalChordKey && !_appSettings.Sync.Playback.OnlyPlayMatchingNotes &&
-                 !_appSettings.Sync.Playback.SeparateChordVolumeActive) || map?.HitObjects == null ||
+                 !_appSettings.Sync.Playback.SeparateChordVolumeActive && !_appSettings.Sync.Playback.RampSingleNoteVolume) || map?.HitObjects == null ||
                 (_chordGate != null && ReferenceEquals(_chordMap, map))) return;
             int columns = (int)map.Difficulty.CircleSize;
             if (columns < 1 || columns > 18) return;
@@ -274,6 +288,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                     ((double)h.Offset, Math.Clamp((int)(h.X * columns / 512.0), 0, columns - 1))),
                 _gameplaySessionManager.KeyList, columns, _chordSeekTime);
             _chordMap = map;
+            _singleNoteRamp.Reset();
         }
     }
 
@@ -298,6 +313,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                 ctx.HasStalledGameplayClock || _playbackEngine.CurrentDevice == null || map?.HitObjects == null)
             {
                 _chordGate?.CancelPending();
+                _singleNoteRamp.Reset();
                 if (!onlyNotes) ProcessImmediateInteraction(buffer, lane);
                 return;
             }
@@ -319,6 +335,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
             {
                 foreach (var immediate in _immediateBuffer)
                     buffer.Add(immediate with { IsChord = result.MatchesNote && result.IsChord });
+                ApplySingleNoteRamp(buffer, result);
                 return;
             }
             foreach (var node in result.Samples)
@@ -326,9 +343,33 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                 if (_gameplayAudioService.TryGetAudioByNode(node, out var audio))
                     buffer.Add(new PlaybackInfo(audio, node) { IsChord = result.IsChord });
             }
+            ApplySingleNoteRamp(buffer, result);
             if (buffer.Count > 1)
                 _logger.LogDebug("Final chord key: releasing {Samples} samples together", buffer.Count);
         }
+    }
+
+    private float? GetSingleNoteRampGain(ManiaChordGate.PressResult note)
+    {
+        var settings = _appSettings.Sync.Playback;
+        if (!settings.RampSingleNoteVolume) return null;
+        if (note.IsChord)
+        {
+            _singleNoteRamp.Reset();
+            return null;
+        }
+        if (!note.MatchesNote || !note.IsNewPress) return null;
+        return _singleNoteRamp.Advance(note.SingleRun, note.HeadTime,
+            settings.SingleNoteRampCurve, settings.SingleNoteRampNotes);
+    }
+
+    private void ApplySingleNoteRamp(List<PlaybackInfo> buffer, ManiaChordGate.PressResult note)
+    {
+        if (buffer.Count == 0 && !note.IsChord) return;
+        var gain = GetSingleNoteRampGain(note);
+        if (!gain.HasValue) return;
+        for (int i = 0; i < buffer.Count; i++)
+            buffer[i] = buffer[i] with { SingleNoteRampGain = gain };
     }
 
     private void FillNextPlaybackAudio(List<PlaybackInfo> buffer, PlaybackEvent? firstNode, int playTime,
@@ -344,13 +385,15 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
             if (playTime < firstNode.Offset + 200 &&
                 _gameplayAudioService.TryGetAudioByNode(firstNode, out var cachedSound))
             {
-                bool isChord;
+                ManiaChordGate.PressResult note;
+                float? rampGain;
                 lock (_chordLock)
                 {
                     PrepareChordState();
-                    isChord = _chordGate?.IsChordSample(firstNode) == true;
+                    note = _chordGate?.DescribeSample(firstNode) ?? ManiaChordGate.PressResult.Unmatched;
+                    rampGain = GetSingleNoteRampGain(note);
                 }
-                buffer.Add(new PlaybackInfo(cachedSound, firstNode) { IsChord = isChord });
+                buffer.Add(new PlaybackInfo(cachedSound, firstNode) { IsChord = note.IsChord, SingleNoteRampGain = rampGain });
             }
 
             if (includeKey)

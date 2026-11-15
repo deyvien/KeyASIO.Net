@@ -167,6 +167,14 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Use a default hitsound when all samples belonging to a note are missing or silent. Existing audible note sounds are not doubled.")]
     public bool UseFallbackHitsounds { get; set; }
 
+    [Description("Ramp consecutive played single notes up to each note's authored volume. Chords reset the ramp and are not ramped.")]
+    public bool RampSingleNoteVolume { get; set; }
+
+    public SingleNoteRampCurve SingleNoteRampCurve { get; set; } = SingleNoteRampCurve.Linear;
+
+    [Description("Number of played single notes to reach authored volume, from 1 to 1000.")]
+    public int SingleNoteRampNotes { get; set; } = 3;
+
     [Description("Slider‑tail playback behavior. " +
                  "Normal: always play; KeepReverse: play only on multi‑reverse sliders; Ignore: never play.")]
     public SliderTailPlaybackBehavior TailPlaybackBehavior { get; set; } = SliderTailPlaybackBehavior.Normal;

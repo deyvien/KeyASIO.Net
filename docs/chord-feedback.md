@@ -75,3 +75,27 @@ It does not bypass a user-muted volume. Ignore line volumes is respected when
 deciding whether the original sample is audible; it does not bypass the quieter fallback gain.
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/8.
+
+## Single-note volume ramp
+
+Enable **Sync Mode → Mania Hitsounds → Ramp up single-note volume** and choose
+**Linear** or **Exponential**, then set **Notes to maximum** (1–1000, default 3).
+The feature defaults to off.
+
+Consecutive played single-note heads share one count across lanes, samples,
+spacing and rhythmic values. There is no stream-pattern detector. A chord
+resets the run, even if you skip that chord; chord sounds themselves are not
+ramped. Multiple sound components count as one note. Free taps do not advance
+the count. Seek, retry, map, pause and ramp-setting changes reset progress.
+
+Both curves start at 1/N of the note's authored volume and reach its full
+authored volume on note N. Linear uses equal steps: N=3 gives 1/3, 2/3, 1.
+Exponential uses a constant multiplier: N=10 rises from 10% to 100% by its
+tenth note. Further single notes remain at their authored level until a chord.
+
+Each note's own mapper volume is the ceiling, including when Ignore line
+volumes is on; Master and hitsound faders still apply afterward. Fallback
+sounds retain their quieter cap and cannot exceed the mapper ceiling while
+ramped, so an authored zero remains silent in this mode.
+
+Tracked by https://github.com/deyvien/KeyASIO.Net/issues/11.
