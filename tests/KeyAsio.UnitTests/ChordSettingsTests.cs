@@ -14,6 +14,34 @@ namespace KeyAsio.UnitTests;
 public sealed class ChordSettingsTests
 {
     [AvaloniaFact]
+    public async Task SingleNoteRampControlsPersistAndDefaultOff()
+    {
+        var folder = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var converter = MyYamlConfigurationConverter.Instance;
+            var settings = ConfigurationFactory.GetConfiguration<AppSettings>(folder, "appsettings.yaml", converter);
+            Assert.False(settings.Sync.Playback.RampSingleNoteVolume);
+            Assert.Equal(3, settings.Sync.Playback.SingleNoteRampNotes);
+            using var manager = new SettingsManager(NullLogger<SettingsManager>.Instance, settings,
+                Mock.Of<IPlaybackEngine>(), Mock.Of<ISukiToastManager>());
+            foreach (var curve in Enum.GetValues<KeyAsio.Configuration.Models.SingleNoteRampCurve>())
+            {
+                settings.Sync.Playback.RampSingleNoteVolume = true;
+                settings.Sync.Playback.SingleNoteRampCurve = curve;
+                settings.Sync.Playback.SingleNoteRampNotes = curve == KeyAsio.Configuration.Models.SingleNoteRampCurve.Linear ? 3 : 10;
+                await Task.Delay(750);
+                Dispatcher.UIThread.RunJobs();
+                var saved = (AppSettings)converter.DeserializeSettings(await File.ReadAllTextAsync(Path.Combine(folder, "appsettings.yaml")), typeof(AppSettings));
+                Assert.True(saved.Sync.Playback.RampSingleNoteVolume);
+                Assert.Equal(curve, saved.Sync.Playback.SingleNoteRampCurve);
+                Assert.Equal(settings.Sync.Playback.SingleNoteRampNotes, saved.Sync.Playback.SingleNoteRampNotes);
+            }
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [AvaloniaFact]
     public async Task FallbackToggleIsDefaultOffAndPersists()
     {
         var folder = Directory.CreateTempSubdirectory().FullName;

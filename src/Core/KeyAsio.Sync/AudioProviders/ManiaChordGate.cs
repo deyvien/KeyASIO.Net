@@ -8,6 +8,9 @@ internal sealed class ManiaChordGate
     internal readonly record struct PressResult(bool MatchesNote, bool IsChord, IReadOnlyList<SampleEvent> Samples)
     {
         public static PressResult Unmatched => new(false, false, []);
+        public double HeadTime { get; init; }
+        public int SingleRun { get; init; }
+        public bool IsNewPress { get; init; }
     }
 
     private sealed class Chord(double offset, int[] lanes, SampleEvent[] samples)
@@ -17,6 +20,7 @@ internal sealed class ManiaChordGate
         public SampleEvent[] Samples { get; } = samples;
         public HashSet<int> Pressed { get; } = new();
         public bool Finished { get; set; }
+        public int SingleRun { get; set; }
     }
 
     private readonly Dictionary<int, Chord[]> _lanes;
@@ -25,6 +29,7 @@ internal sealed class ManiaChordGate
     private double _lastTime = double.NegativeInfinity;
     private readonly int _keyCount;
     private readonly HashSet<double> _chordTimes;
+    private readonly Dictionary<double, Chord> _byTime;
 
     public ManiaChordGate(IEnumerable<(double Offset, int Lane)> heads,
         IEnumerable<SampleEvent> samples, int keyCount, double startTime)
@@ -40,10 +45,23 @@ internal sealed class ManiaChordGate
         _lanes = Enumerable.Range(0, keyCount).ToDictionary(lane => lane,
             lane => _chords.Where(x => x.Lanes.Contains(lane)).ToArray());
         _chordTimes = _chords.Where(x => x.Lanes.Length > 1).Select(x => x.Offset).ToHashSet();
+        int run = 0;
+        foreach (var group in _chords)
+        {
+            if (group.Lanes.Length > 1) run++;
+            group.SingleRun = run;
+        }
+        _byTime = _chords.ToDictionary(x => x.Offset);
     }
 
     public bool IsChordSample(PlaybackEvent sample) =>
         sample is SampleEvent { Layer: SampleLayer.Primary } && _chordTimes.Contains(sample.Offset);
+
+    public PressResult DescribeSample(PlaybackEvent sample) =>
+        sample is SampleEvent { Layer: SampleLayer.Primary } && _byTime.TryGetValue(sample.Offset, out var group)
+            ? new PressResult(true, group.Lanes.Length > 1, [])
+                { HeadTime = group.Offset, SingleRun = group.SingleRun, IsNewPress = true }
+            : PressResult.Unmatched;
 
     // Called under the sequencer's chord lock. No audio data is retained between presses.
     public IReadOnlyList<SampleEvent> Press(int lane, double time, double window)
@@ -83,8 +101,9 @@ internal sealed class ManiaChordGate
 
         if (nearest == null || distance > window) return PressResult.Unmatched;
         bool isChord = nearest.Lanes.Length > 1;
-        var held = new PressResult(true, isChord, []);
+        var held = new PressResult(true, isChord, []) { HeadTime = nearest.Offset, SingleRun = nearest.SingleRun };
         if (nearest.Finished || !nearest.Pressed.Add(lane)) return held;
+        held = held with { IsNewPress = true };
         if (!groupChords)
         {
             nearest.Finished = nearest.Pressed.Count == nearest.Lanes.Length;
@@ -95,7 +114,7 @@ internal sealed class ManiaChordGate
                 ? nearest.Samples.Where(x => Math.Clamp((int)Math.Round((x.Balance + 1d) / 2 * _keyCount - .5),
                     0, _keyCount - 1) == lane).ToArray()
                 : nearest.Samples;
-            return new PressResult(true, isChord, samples);
+            return held with { Samples = samples };
         }
         if (nearest.Pressed.Count != nearest.Lanes.Length)
         {
@@ -105,7 +124,7 @@ internal sealed class ManiaChordGate
 
         nearest.Finished = true;
         _pending.Remove(nearest);
-        return new PressResult(true, isChord, nearest.Samples);
+        return held with { Samples = nearest.Samples };
     }
 
     public void CancelPending()

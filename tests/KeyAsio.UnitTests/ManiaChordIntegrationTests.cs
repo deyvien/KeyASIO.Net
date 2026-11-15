@@ -61,6 +61,15 @@ public sealed class ManiaChordIntegrationTests
                 320,192,2000,1,0,0:0:0:0:
                 448,192,3000,1,0,0:0:0:0:
                 448,192,4000,1,0,0:0:0:0:
+                64,192,5000,1,0,0:0:0:0:
+                192,192,5100,1,0,0:0:0:0:
+                64,192,6000,1,0,0:0:0:0:
+                320,192,6000,1,0,0:0:0:0:
+                320,192,6500,1,0,0:0:0:0:
+                192,192,7000,1,0,0:0:0:0:
+                448,192,7000,1,0,0:0:0:0:
+                64,192,8000,1,0,0:0:0:0:
+                192,192,9000,1,0,0:0:0:0:
                 """);
             var format = new WaveFormat(48000, 16, 2);
             using (var writer = new WaveFileWriter(Path.Combine(folder, "test.wav"), format))
@@ -97,10 +106,10 @@ public sealed class ManiaChordIntegrationTests
                 engine.Object, ctx, loader, sfx) { OsuFile = await OsuFile.ReadFromFileAsync(mapPath) };
             var sequencer = new ManiaHitsoundSequencer(NullLogger<ManiaHitsoundSequencer>.Instance,
                 settings, ctx, engine.Object, audio, session);
-            foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (3000, .75f), (4000, .75f)})
+            foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (3000, .75f), (4000, .75f), (5000, -.75f), (5100, -.25f), (6000, -.75f), (6000, .25f), (6500, .25f), (7000, -.25f), (7000, .75f), (8000, -.75f), (9000, -.25f)})
                 session.KeyList.Add(PlaybackEvent.Create(Guid.NewGuid(), time, 1, balance, "test.wav", ResourceOwner.Beatmap, SampleLayer.Primary));
             audio.RegisterNoteSamples(session.KeyList);
-            audio.PrecacheHitsoundsRangeInBackground(0, 5000, session.KeyList);
+            audio.PrecacheHitsoundsRangeInBackground(0, 10000, session.KeyList);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             while (!session.KeyList.All(x => audio.TryGetAudioByNode(x, out _)))
                 await Task.Delay(10, timeout.Token);
@@ -186,6 +195,47 @@ public sealed class ManiaChordIntegrationTests
             sequencer.SeekTo(0);
             Press(0, 1000);
             Assert.Single(buffer);
+
+            // The ramp counts actual single-note heads across keys and arbitrary spacing.
+            settings.Sync.Playback.RampSingleNoteVolume = true;
+            settings.Sync.Playback.SingleNoteRampNotes = 3;
+            settings.Sync.Playback.WaitForFinalChordKey = grouped;
+            sequencer.SeekTo(0);
+            Press(0, 500);
+            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain));
+            Press(3, 3000);
+            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Press(3, 3001);
+            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain)); // Free repeats do not advance the ramp.
+            Press(3, 4000);
+            Assert.Equal(2f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Press(0, 5000);
+            Assert.Equal(1, Assert.Single(buffer).SingleNoteRampGain);
+            Press(1, 5100);
+            Assert.Equal(1, Assert.Single(buffer).SingleNoteRampGain);
+            Press(0, 6000);
+            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain));
+            Press(2, 6020);
+            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain)); // Chords themselves are unchanged.
+            Press(2, 6500);
+            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            Press(0, 8000); // Unplayed chord at 7000 still separates the runs.
+            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            sequencer.ClearChordState();
+            Press(1, 9000);
+            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            sequencer.SeekTo(0);
+            Press(3, 3000);
+            Assert.Equal(1f / 3, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            settings.Sync.Playback.SingleNoteRampNotes = 10;
+            Press(3, 4000);
+            Assert.Equal(.1f, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            settings.Sync.Playback.SingleNoteRampCurve = KeyAsio.Configuration.Models.SingleNoteRampCurve.Exponential;
+            Press(0, 5000);
+            Assert.Equal(.1f, Assert.Single(buffer).SingleNoteRampGain!.Value, 6);
+            settings.Sync.Playback.RampSingleNoteVolume = false;
+            Press(1, 5100);
+            Assert.All(buffer, x => Assert.Null(x.SingleNoteRampGain));
 
             settings.Sync.Playback.UseSeparateChordVolume = true;
             settings.Sync.Playback.WaitForFinalChordKey = true;

@@ -108,6 +108,38 @@ public sealed class FallbackHitsoundTests
         Assert.Equal(original, f.Audio.ResolveFallback(original));
     }
 
+    [Theory]
+    [InlineData(false, .5f)]
+    [InlineData(true, .5f)]
+    [InlineData(true, 1f)]
+    public async Task RampedSingleUsesMapperVolumeAsCeilingEvenWhenLineVolumesAreIgnored(bool ignore, float gain)
+    {
+        using var f = new Fixture();
+        f.Write("note.wav", .25f);
+        var note = Note("note.wav", volume: .4f);
+        f.Audio.RegisterNoteSamples([note]);
+        await f.Cache(note);
+        f.Settings.Sync.Filters.IgnoreLineVolumes = ignore;
+        f.Sfx.DispatchPlayback(f.Playback(note) with { SingleNoteRampGain = gain });
+        Assert.Equal(.25f * .4f * gain, f.Render(), 3);
+    }
+
+    [Theory]
+    [InlineData(1f, .03125f)]
+    [InlineData(.1f, .0125f)]
+    [InlineData(0f, 0f)]
+    public async Task RampedFallbackKeepsQuietCapAndMapperCeiling(float mapperVolume, float expected)
+    {
+        using var f = new Fixture();
+        f.Settings.Sync.Playback.UseFallbackHitsounds = true;
+        f.Settings.Sync.Filters.IgnoreLineVolumes = true;
+        var note = Note("missing.wav", volume: mapperVolume);
+        f.Audio.RegisterNoteSamples([note]);
+        await f.Cache(note);
+        f.Sfx.DispatchPlayback(f.Playback(note) with { SingleNoteRampGain = .5f });
+        Assert.InRange(Math.Abs(expected - f.Render()), 0, 1f / 32768); // Allow one 16-bit PCM quantization step.
+    }
+
     [Fact]
     public async Task AudibleSiblingSuppressesFallbackAndIsNotDoubled()
     {

@@ -172,6 +172,7 @@ public partial class MainWindowViewModel : IDisposable
             : SR.App_Title;
 
     public SliderTailPlaybackBehavior[] SliderTailBehaviors { get; } = Enum.GetValues<SliderTailPlaybackBehavior>();
+    public SingleNoteRampCurve[] SingleNoteRampCurves { get; } = Enum.GetValues<SingleNoteRampCurve>();
     public UpdateChannel[] UpdateChannels { get; } = Enum.GetValues<UpdateChannel>();
     public AppTheme[] AvailableThemes { get; } = Enum.GetValues<AppTheme>();
 

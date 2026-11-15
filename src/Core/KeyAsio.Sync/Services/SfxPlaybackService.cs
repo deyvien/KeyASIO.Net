@@ -87,7 +87,15 @@ public class SfxPlaybackService
                     volume = playableNode.Volume;
             }
 
-            PlayEffectsAudio(cachedAudio, volume, playableNode.Balance, mixer, preserveVolume: playbackInfo.IsFallback);
+            if (playbackInfo.SingleNoteRampGain is { } rampGain && !playbackInfo.IsChord)
+            {
+                // The mapper's level is the ceiling, even when Ignore line volumes is enabled.
+                volume = playbackInfo.IsFallback ? Math.Min(0.25f, playableNode.Volume) : playableNode.Volume;
+                volume *= Math.Clamp(rampGain, 0, 1);
+            }
+
+            PlayEffectsAudio(cachedAudio, volume, playableNode.Balance, mixer,
+                preserveVolume: playbackInfo.IsFallback || playbackInfo.SingleNoteRampGain.HasValue);
         }
         else
         {
