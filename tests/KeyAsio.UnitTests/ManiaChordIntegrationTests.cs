@@ -18,8 +18,12 @@ namespace KeyAsio.UnitTests;
 
 public sealed class ManiaChordIntegrationTests
 {
-    [Fact]
-    public async Task ParsedHoldHeadAndTap_ReleaseCachedSamplesTogether_AndToggleCancelsPending()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task TapFeedbackAndChordGroupingAreIndependent(bool grouped, bool noteOnly)
     {
         var folder = Directory.CreateTempSubdirectory().FullName;
         try
@@ -50,13 +54,15 @@ public sealed class ManiaChordIntegrationTests
                 64,192,2000,1,0,0:0:0:0:
                 320,192,2000,1,0,0:0:0:0:
                 448,192,3000,1,0,0:0:0:0:
+                448,192,4000,1,0,0:0:0:0:
                 """);
             var format = new WaveFormat(48000, 16, 2);
             using (var writer = new WaveFileWriter(Path.Combine(folder, "test.wav"), format))
                 writer.WriteSamples(Enumerable.Repeat(.2f, 64).ToArray(), 0, 64);
 
             var settings = new AppSettings();
-            settings.Sync.Playback.WaitForFinalChordKey = true;
+            settings.Sync.Playback.WaitForFinalChordKey = grouped;
+            settings.Sync.Playback.OnlyPlayMatchingNotes = noteOnly;
             var ctx = new SyncSessionContext(settings) { OsuStatus = OsuMemoryStatus.Playing, IsStarted = true };
             var mixer = new QueueMixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)) { ReadFully = true };
             var engine = new Mock<IPlaybackEngine>();
@@ -76,9 +82,9 @@ public sealed class ManiaChordIntegrationTests
                 engine.Object, ctx, loader, sfx) { OsuFile = await OsuFile.ReadFromFileAsync(mapPath) };
             var sequencer = new ManiaHitsoundSequencer(NullLogger<ManiaHitsoundSequencer>.Instance,
                 settings, ctx, engine.Object, audio, session);
-            foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (3000, .75f)})
+            foreach (var (time, balance) in new[] {(1000, -.75f), (1000, .25f), (2000, -.75f), (2000, .25f), (3000, .75f), (4000, .75f)})
                 session.KeyList.Add(PlaybackEvent.Create(Guid.NewGuid(), time, 1, balance, "test.wav", ResourceOwner.Beatmap, SampleLayer.Primary));
-            audio.PrecacheHitsoundsRangeInBackground(0, 4000, session.KeyList);
+            audio.PrecacheHitsoundsRangeInBackground(0, 5000, session.KeyList);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             while (!session.KeyList.All(x => audio.TryGetAudioByNode(x, out _)))
                 await Task.Delay(10, timeout.Token);
@@ -90,26 +96,46 @@ public sealed class ManiaChordIntegrationTests
                 sequencer.ProcessInteraction(buffer, lane, 4);
             }
 
+            // Before a note's window, normal mode selects the same next-lane sample as upstream.
+            Press(0, 500);
+            Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
+            if (!noteOnly) Assert.Same(session.KeyList[0], buffer[0].PlaybackEvent);
+            Press(3, 510);
+            Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
+            if (!noteOnly) Assert.Same(session.KeyList[4], buffer[0].PlaybackEvent);
+
             Press(0, 990);
-            Assert.Empty(buffer);
+            Assert.Equal(grouped ? 0 : 1, buffer.Count);
             Press(2, 1020);
-            Assert.Equal(2, buffer.Count);
+            Assert.Equal(grouped ? 2 : 1, buffer.Count);
             sfx.DispatchChord(buffer);
             var output = new float[16];
             mixer.Read(output, 0, output.Length);
-            Assert.Contains(output, x => Math.Abs(x) > .1f);
-            Press(0, 1490); // Hold tail is not another chord head.
-            Assert.Empty(buffer);
+            Assert.Contains(output, x => Math.Abs(x) > .01f);
+
+            Press(0, 1490); // Hold tail is not another chord head; unfiltered tapping still works.
+            Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
             Press(0, 1990);
-            Assert.Empty(buffer);
-            settings.Sync.Playback.WaitForFinalChordKey = false;
-            settings.Sync.Playback.WaitForFinalChordKey = true;
+            Assert.Equal(grouped ? 0 : 1, buffer.Count);
             Press(2, 2020);
-            Assert.Empty(buffer);
+            Assert.Equal(grouped ? 2 : 1, buffer.Count);
             Press(3, 3000);
             Assert.Single(buffer);
+            Press(3, 3001); // Repeated single taps retain the normal next-sample fallback unless filtered.
+            Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
+            if (!noteOnly) Assert.Same(session.KeyList[5], buffer[0].PlaybackEvent);
 
-            // A stopped game clock cancels a pending chord; resuming cannot release it.
+            // Switching policies cancels a partial group, including one started ungrouped.
+            sequencer.SeekTo(0);
+            settings.Sync.Playback.WaitForFinalChordKey = false;
+            settings.Sync.Playback.OnlyPlayMatchingNotes = true;
+            Press(0, 990);
+            Assert.Single(buffer);
+            settings.Sync.Playback.WaitForFinalChordKey = true;
+            Press(2, 1020);
+            Assert.Empty(buffer);
+
+            // A stopped clock clears a partial chord, without changing normal tap feedback.
             sequencer.SeekTo(0);
             Press(0, 990);
             await Task.Delay(150);
@@ -119,17 +145,17 @@ public sealed class ManiaChordIntegrationTests
             Press(2, 1020);
             Assert.Empty(buffer);
 
-            // Physical input must not add a gated chord during replay/autoplay.
+            // Physical input remains usable with the same replay flag the immediate path tolerates.
             sequencer.SeekTo(0);
             ctx.IsReplay = true;
             Press(0, 990);
             Assert.Empty(buffer);
-            ctx.IsReplay = false;
             Press(2, 1020);
-            Assert.Empty(buffer);
+            Assert.Equal(2, buffer.Count);
+            ctx.IsReplay = false;
 
-            // Default-off still takes the original immediate lane path.
             settings.Sync.Playback.WaitForFinalChordKey = false;
+            settings.Sync.Playback.OnlyPlayMatchingNotes = false;
             sequencer.SeekTo(0);
             Press(0, 1000);
             Assert.Single(buffer);

@@ -2,13 +2,22 @@
 
 In **Sync Mode → Mania Hitsounds**, enable **Wait until final chord key**.
 The setting is saved automatically and takes effect without restarting the audio device.
-It defaults to off.
+It defaults to off. **Only play hitsounds for matching notes** is a separate
+setting in the same section, also off by default.
 
 For live mania play, notes whose heads share the same beatmap timestamp form a
 chord. Its samples play together on the final distinct required lane press.
-Single notes play immediately. A long note contributes its head, not its release.
+Single notes and ordinary taps keep KeyASIO's normal immediate lane-sample feedback.
+A long note contributes its head, not its release.
 Repeated presses in one lane cannot complete a chord. Incomplete or expired
-chords remain silent, including chords containing a lane without an audible sample.
+groups are not released, including groups containing a lane without an audible sample.
+
+Enable **Only play hitsounds for matching notes** to silence taps outside a
+playable note's hit window. It works with chord grouping on or off: with grouping
+off, matched notes sound individually; with grouping on, chords wait for their
+final key. Leaving note-only filtering off preserves the existing fallback to
+the next available lane sample, including early taps and taps between notes.
+This filters by beatmap timing, not by whether a note is visible on the screen.
 
 The matching window follows Practice Timeline's classic mania final scoreable
 window, including OD and DT/HT/EZ/HR adjustments. Matching uses chart lanes and
@@ -20,8 +29,11 @@ Retries, map transitions, setting changes and a stopped game clock discard
 pending sounds. The existing memory clock can take up to 100 ms to detect a
 pause. Brief interpolation corrections do not cancel a chord.
 
-All released samples are submitted as one mixer input, preserving their sample
+All grouped samples are submitted as one mixer input, preserving their sample
 volume and balance. The setting applies to both ASIO and WASAPI; it does not
 change driver latency, offsets, music playback, or replay/autoplay scheduling.
+Physical taps no longer have an additional replay-flag mute in the chord path;
+this follows the normal immediate path and does not repair replay detection itself.
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/2.
+Independent note filtering: https://github.com/deyvien/KeyASIO.Net/issues/4.
