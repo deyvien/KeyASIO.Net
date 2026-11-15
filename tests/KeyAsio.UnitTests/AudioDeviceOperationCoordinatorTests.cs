@@ -11,15 +11,18 @@ namespace KeyAsio.UnitTests;
 public sealed class AudioDeviceOperationCoordinatorTests
 {
     [Theory]
-    [InlineData(false, .7f)]
-    [InlineData(true, .3f)]
-    public async Task DeviceStartRestoresEffectiveChordVolume(bool enabled, float expected)
+    [InlineData(false, false, .7f)]
+    [InlineData(false, true, .7f)]
+    [InlineData(true, false, .7f)]
+    [InlineData(true, true, .3f)]
+    public async Task DeviceStartRestoresEffectiveChordVolume(bool grouped, bool enabled, float expected)
     {
         var previous = Device("previous");
         var settings = Settings(previous, 44100);
         settings.Audio.EffectVolume = 70;
         settings.Audio.ChordVolume = 30;
         settings.Sync.Playback.UseSeparateChordVolume = enabled;
+        settings.Sync.Playback.WaitForFinalChordKey = grouped;
         var engine = new PlaybackEngineHarness(previous, 44100);
         using var coordinator = CreateCoordinator(settings, new Mock<IAppSettingsPersistence>(),
             engine, new Mock<IGameplayAudioCache>());

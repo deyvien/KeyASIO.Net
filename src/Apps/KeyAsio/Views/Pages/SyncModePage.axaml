@@ -98,24 +98,27 @@
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.WaitForFinalChordKey}" />
             <controls:SettingItem
+              x:Name="UseSeparateChordVolumeSetting"
+              Classes="Switch"
+              Margin="24,0,0,0"
+              IsEnabled="{Binding AppSettings.Sync.Playback.WaitForFinalChordKey}"
+              Header="Use separate chord volume"
+              Description="While final-key grouping is on, adjust Chords in the bottom-left volume box. Master volume affects both."
+              Icon="VolumeHigh"
+              IsChecked="{Binding AppSettings.Sync.Playback.UseSeparateChordVolume}" />
+            <controls:SettingItem
               x:Name="OnlyPlayMatchingNotesSetting"
               Classes="Switch"
               Header="Only play hitsounds near note timing"
               Description="Silence taps outside a note’s hit window. Turn off to hear normal tap feedback between notes."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.OnlyPlayMatchingNotes}" />
-            <controls:SettingItem
-              x:Name="UseSeparateChordVolumeSetting"
-              Classes="Switch"
-              Header="Use separate chord volume"
-              Description="Adjust Chords in the bottom-left volume box independently of normal hitsounds. Master volume affects both."
-              Icon="VolumeHigh"
-              IsChecked="{Binding AppSettings.Sync.Playback.UseSeparateChordVolume}" />
+
             <controls:SettingItem
               x:Name="UseFallbackHitsoundsSetting"
               Classes="Switch"
               Header="Fallback hitsounds for silent notes"
-              Description="Play a default hitsound when a note has no audible sample. Existing hitsounds are not doubled; normal and chord volume settings still apply."
+              Description="Play a quieter default hitsound when a note has no audible sample. Existing hitsounds are not doubled; normal and chord volume settings still apply."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.UseFallbackHitsounds}" />
           </StackPanel>

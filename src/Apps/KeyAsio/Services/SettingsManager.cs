@@ -107,14 +107,14 @@ public class SettingsManager : IDisposable
         }
         else if (sender is AppSettingsSyncPlayback)
         {
-            if (e.PropertyName == nameof(AppSettingsSyncPlayback.UseSeparateChordVolume))
+            if (e.PropertyName == nameof(AppSettingsSyncPlayback.UseSeparateChordVolume) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey))
             {
                 ApplyChordVolume();
                 DebounceSave();
             }
             else if (e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceFactor) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceMode) ||
-                e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.UseFallbackHitsounds))
             {
@@ -152,7 +152,7 @@ public class SettingsManager : IDisposable
     }
 
     private void ApplyChordVolume() => _playbackEngine.ChordVolume =
-        (_appSettings.Sync.Playback.UseSeparateChordVolume ? _appSettings.Audio.ChordVolume : _appSettings.Audio.EffectVolume) / 100f;
+        (_appSettings.Sync.Playback.SeparateChordVolumeActive ? _appSettings.Audio.ChordVolume : _appSettings.Audio.EffectVolume) / 100f;
 
     private void HandleSaveException(Exception ex)
     {

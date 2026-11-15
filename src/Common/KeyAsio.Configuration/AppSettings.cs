@@ -158,8 +158,11 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Mania: silence taps that do not match a playable beatmap note. Independent of final-key chord feedback; off preserves normal tap sounds.")]
     public bool OnlyPlayMatchingNotes { get; set; }
 
-    [Description("Use the separate Chords fader for mania chord notes, independently of final-key grouping.")]
+    [Description("Use the separate Chords fader while final-key chord grouping is enabled.")]
     public bool UseSeparateChordVolume { get; set; }
+
+    [YamlDotNet.Serialization.YamlIgnore]
+    public bool SeparateChordVolumeActive => WaitForFinalChordKey && UseSeparateChordVolume;
 
     [Description("Use a default hitsound when all samples belonging to a note are missing or silent. Existing audible note sounds are not doubled.")]
     public bool UseFallbackHitsounds { get; set; }

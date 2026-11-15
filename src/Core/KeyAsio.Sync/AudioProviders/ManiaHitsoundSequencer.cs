@@ -109,7 +109,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
     public void ProcessInteraction(List<PlaybackInfo> buffer, int keyIndex, int keyTotal)
     {
         if (_appSettings.Sync.Playback.WaitForFinalChordKey || _appSettings.Sync.Playback.OnlyPlayMatchingNotes ||
-            _appSettings.Sync.Playback.UseSeparateChordVolume)
+            _appSettings.Sync.Playback.SeparateChordVolumeActive)
         {
             ProcessChordInteraction(buffer, keyIndex);
             return;
@@ -266,7 +266,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         {
             var map = _gameplaySessionManager.OsuFile;
             if ((!_appSettings.Sync.Playback.WaitForFinalChordKey && !_appSettings.Sync.Playback.OnlyPlayMatchingNotes &&
-                 !_appSettings.Sync.Playback.UseSeparateChordVolume) || map?.HitObjects == null ||
+                 !_appSettings.Sync.Playback.SeparateChordVolumeActive) || map?.HitObjects == null ||
                 (_chordGate != null && ReferenceEquals(_chordMap, map))) return;
             int columns = (int)map.Difficulty.CircleSize;
             if (columns < 1 || columns > 18) return;
