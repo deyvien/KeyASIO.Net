@@ -121,26 +121,37 @@
               Description="Play a quieter default hitsound when a note has no audible sample. Existing hitsounds are not doubled; normal and chord volume settings still apply."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.UseFallbackHitsounds}" />
-            <controls:SettingItem
-              x:Name="RampSingleNoteVolumeSetting"
-              Classes="Switch"
-              Header="Ramp up single-note volume"
-              Description="Raise consecutive single notes toward each note's mapper volume. A chord starts a new ramp; chords keep their usual volume."
-              Icon="VolumeHigh"
-              IsChecked="{Binding AppSettings.Sync.Playback.RampSingleNoteVolume}" />
-            <StackPanel Margin="24,0,0,0" Spacing="10"
-                        IsEnabled="{Binding AppSettings.Sync.Playback.RampSingleNoteVolume}">
-              <controls:SettingItem Header="Ramp mode" Icon="Tune">
-                <ComboBox MinWidth="150"
-                          ItemsSource="{Binding SingleNoteRampCurves}"
-                          SelectedItem="{Binding AppSettings.Sync.Playback.SingleNoteRampCurve}" />
-              </controls:SettingItem>
-              <controls:SettingItem Header="Notes to maximum" Icon="MusicNote"
-                                    Description="Reach the mapper's volume on this note, then stay there until a chord.">
-                <NumericUpDown Minimum="1" Maximum="1000" Increment="1" FormatString="F0"
-                               Value="{Binding AppSettings.Sync.Playback.SingleNoteRampNotes}" />
-              </controls:SettingItem>
-            </StackPanel>
+            <suki:GroupBox Header="Volume ramp-up">
+              <StackPanel Spacing="12">
+                <controls:SettingItem
+                  x:Name="RampSingleNoteVolumeSetting"
+                  Classes="Switch"
+                  Header="Single notes"
+                  Description="Ramp consecutive single notes. Chords start a new single-note run."
+                  Icon="MusicNote"
+                  IsChecked="{Binding AppSettings.Sync.Playback.RampSingleNoteVolume}" />
+                <controls:SettingItem
+                  x:Name="RampChordVolumeSetting"
+                  Classes="Switch"
+                  Header="Chords"
+                  Description="Ramp consecutive chords, counting each chord once. Single notes start a new chord run."
+                  Icon="VolumeHigh"
+                  IsChecked="{Binding AppSettings.Sync.Playback.RampChordVolume}" />
+                <StackPanel Margin="24,0,0,0" Spacing="10"
+                            IsEnabled="{Binding AppSettings.Sync.Playback.AnyVolumeRampActive}">
+                  <controls:SettingItem Header="Ramp mode" Icon="Tune">
+                    <ComboBox MinWidth="150"
+                              ItemsSource="{Binding SingleNoteRampCurves}"
+                              SelectedItem="{Binding AppSettings.Sync.Playback.SingleNoteRampCurve}" />
+                  </controls:SettingItem>
+                  <controls:SettingItem Header="Count to maximum" Icon="MusicNote"
+                                        Description="Each single note or chord counts once in its run. Maximum follows the mapper's volume.">
+                    <NumericUpDown Minimum="1" Maximum="1000" Increment="1" FormatString="F0"
+                                   Value="{Binding AppSettings.Sync.Playback.SingleNoteRampNotes}" />
+                  </controls:SettingItem>
+                </StackPanel>
+              </StackPanel>
+            </suki:GroupBox>
           </StackPanel>
         </suki:GroupBox>
       </suki:GlassCard>

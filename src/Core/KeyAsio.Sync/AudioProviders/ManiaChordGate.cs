@@ -10,6 +10,7 @@ internal sealed class ManiaChordGate
         public static PressResult Unmatched => new(false, false, []);
         public double HeadTime { get; init; }
         public int SingleRun { get; init; }
+        public int ChordRun { get; init; }
         public bool IsNewPress { get; init; }
     }
 
@@ -21,6 +22,7 @@ internal sealed class ManiaChordGate
         public HashSet<int> Pressed { get; } = new();
         public bool Finished { get; set; }
         public int SingleRun { get; set; }
+        public int ChordRun { get; set; }
     }
 
     private readonly Dictionary<int, Chord[]> _lanes;
@@ -45,11 +47,13 @@ internal sealed class ManiaChordGate
         _lanes = Enumerable.Range(0, keyCount).ToDictionary(lane => lane,
             lane => _chords.Where(x => x.Lanes.Contains(lane)).ToArray());
         _chordTimes = _chords.Where(x => x.Lanes.Length > 1).Select(x => x.Offset).ToHashSet();
-        int run = 0;
+        int run = 0, chordRun = 0;
         foreach (var group in _chords)
         {
             if (group.Lanes.Length > 1) run++;
+            else chordRun++;
             group.SingleRun = run;
+            group.ChordRun = chordRun;
         }
         _byTime = _chords.ToDictionary(x => x.Offset);
     }
@@ -60,7 +64,7 @@ internal sealed class ManiaChordGate
     public PressResult DescribeSample(PlaybackEvent sample) =>
         sample is SampleEvent { Layer: SampleLayer.Primary } && _byTime.TryGetValue(sample.Offset, out var group)
             ? new PressResult(true, group.Lanes.Length > 1, [])
-                { HeadTime = group.Offset, SingleRun = group.SingleRun, IsNewPress = true }
+                { HeadTime = group.Offset, SingleRun = group.SingleRun, ChordRun = group.ChordRun, IsNewPress = true }
             : PressResult.Unmatched;
 
     // Called under the sequencer's chord lock. No audio data is retained between presses.
@@ -101,7 +105,8 @@ internal sealed class ManiaChordGate
 
         if (nearest == null || distance > window) return PressResult.Unmatched;
         bool isChord = nearest.Lanes.Length > 1;
-        var held = new PressResult(true, isChord, []) { HeadTime = nearest.Offset, SingleRun = nearest.SingleRun };
+        var held = new PressResult(true, isChord, [])
+            { HeadTime = nearest.Offset, SingleRun = nearest.SingleRun, ChordRun = nearest.ChordRun };
         if (nearest.Finished || !nearest.Pressed.Add(lane)) return held;
         held = held with { IsNewPress = true };
         if (!groupChords)
