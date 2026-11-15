@@ -127,7 +127,7 @@
             HorizontalAlignment="Center"
             Text="Chords"
             FontSize="11"
-            ToolTip.Tip="Enable Use separate chord volume in Sync Mode → Mania Hitsounds." />
+            ToolTip.Tip="Enable Wait until final chord key and its Use separate chord volume option in Sync Mode." />
           <Slider
             x:Name="ChordVolumeSlider"
             Grid.Row="1"
@@ -135,7 +135,7 @@
             Margin="0,5"
             Maximum="{Binding AppSettings.Audio.EnableExtendedVolume, Converter={StaticResource ExtendedVolumeConverter}}"
             Orientation="Vertical"
-            IsEnabled="{Binding AppSettings.Sync.Playback.UseSeparateChordVolume}"
+            IsEnabled="{Binding AppSettings.Sync.Playback.SeparateChordVolumeActive}"
             PointerWheelChanged="Slider_PointerWheelChanged"
             Value="{Binding AppSettings.Audio.ChordVolume}"
             ToolTip.Tip="Chord volume; Master still applies." />

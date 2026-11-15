@@ -54,6 +54,12 @@ public sealed class ChordSettingsTests
             settings.Audio.ChordVolume = 70;
             Assert.Equal(.2f, engine.Object.ChordVolume);
             settings.Sync.Playback.UseSeparateChordVolume = true;
+            Assert.Equal(.2f, engine.Object.ChordVolume); // Child alone cannot enable the separate gain.
+            var changed = new List<string?>();
+            settings.Sync.Playback.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+            settings.Sync.Playback.WaitForFinalChordKey = true;
+            Assert.True(settings.Sync.Playback.SeparateChordVolumeActive);
+            Assert.Contains(nameof(AppSettingsSyncPlayback.SeparateChordVolumeActive), changed);
             Assert.Equal(.7f, engine.Object.ChordVolume);
             settings.Audio.EffectVolume = 0;
             Assert.Equal(0, engine.Object.EffectVolume);
@@ -63,6 +69,12 @@ public sealed class ChordSettingsTests
             var saved = (AppSettings)converter.DeserializeSettings(await File.ReadAllTextAsync(Path.Combine(folder, "appsettings.yaml")), typeof(AppSettings));
             Assert.True(saved.Sync.Playback.UseSeparateChordVolume);
             Assert.Equal(70, saved.Audio.ChordVolume);
+            settings.Sync.Playback.WaitForFinalChordKey = false;
+            Assert.False(settings.Sync.Playback.SeparateChordVolumeActive);
+            Assert.True(settings.Sync.Playback.UseSeparateChordVolume); // Saved child choice survives parent off.
+            Assert.Equal(0, engine.Object.ChordVolume);
+            settings.Sync.Playback.WaitForFinalChordKey = true;
+            Assert.Equal(.7f, engine.Object.ChordVolume);
             settings.Sync.Playback.UseSeparateChordVolume = false;
             Assert.Equal(0, engine.Object.ChordVolume);
             Assert.Equal(70, settings.Audio.ChordVolume); // Turning off does not discard the saved level.

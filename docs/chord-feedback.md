@@ -40,7 +40,8 @@ Independent note filtering: https://github.com/deyvien/KeyASIO.Net/issues/4.
 
 ## Separate chord volume
 
-Enable **Sync Mode → Mania Hitsounds → Use separate chord volume**, then open
+Under **Sync Mode → Mania Hitsounds → Wait until final chord key**, enable
+the child **Use separate chord volume**, then open
 the bottom-left volume box and adjust **Chords**. The normal effects slider
 continues to control single notes, free taps and other effects. Chords have an
 independent level, so muting normal effects does not mute chords. Master volume
@@ -48,8 +49,9 @@ still affects both. The chord fader follows the existing 100%/150% volume range.
 
 The option defaults to off, with a saved chord level of 100%. Off restores the
 shared effects level and disables the Chords fader without forgetting its value.
-It works with final-key grouping on or off and also classifies scheduled mania
-note samples. A chord is defined by multiple chart lanes at the same head time,
+It only takes effect while final-key grouping is on. Turning the parent off
+disables the child control and chord fader and restores shared effects volume,
+without forgetting the saved child choice or chord level. A chord is defined by multiple chart lanes at the same head time,
 not by how many audio samples a note contains.
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/6.
@@ -66,9 +68,10 @@ multi-sample note does not get several fallback sounds. Unprepared samples are
 not assumed silent. Storyboard samples and loop/control events are excluded.
 
 The fallback uses the game's default normal hitsound when available, otherwise
-KeyASIO's built-in generated normal hit. It follows the normal/chord volume and
+KeyASIO's built-in generated normal hit. A fixed 25% fallback gain makes the
+replacement quieter before the normal/chord volume and
 Master controls, along with the existing chord grouping and note-timing options.
 It does not bypass a user-muted volume. Ignore line volumes is respected when
-deciding whether the original sample is audible.
+deciding whether the original sample is audible; it does not bypass the quieter fallback gain.
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/8.

@@ -128,15 +128,15 @@ public sealed class ManiaChordIntegrationTests
             Assert.Equal(grouped ? 0 : 1, buffer.Count);
             Press(2, 1020);
             Assert.Equal(grouped ? 2 : 1, buffer.Count);
-            if (separateVolume) Assert.All(buffer, x => Assert.True(x.IsChord));
+            if (grouped || noteOnly) Assert.All(buffer, x => Assert.True(x.IsChord));
             if (grouped) sfx.DispatchChord(buffer);
             else foreach (var item in buffer) sfx.DispatchPlayback(item);
             var output = new float[16];
             mixer.Read(output, 0, output.Length);
-            if (separateVolume) Assert.All(output, x => Assert.Equal(0, x));
+            if (grouped && separateVolume) Assert.All(output, x => Assert.Equal(0, x));
             else Assert.Contains(output, x => Math.Abs(x) > .01f);
             chordMixer.Read(output, 0, output.Length);
-            if (separateVolume) Assert.Contains(output, x => Math.Abs(x) > .01f);
+            if (grouped && separateVolume) Assert.Contains(output, x => Math.Abs(x) > .01f);
             else Assert.All(output, x => Assert.Equal(0, x));
 
             Press(0, 1490); // Hold tail is not another chord head; unfiltered tapping still works.
@@ -188,6 +188,7 @@ public sealed class ManiaChordIntegrationTests
             Assert.Single(buffer);
 
             settings.Sync.Playback.UseSeparateChordVolume = true;
+            settings.Sync.Playback.WaitForFinalChordKey = true;
             sequencer.SeekTo(0);
             ctx.BaseMemoryTime = 1000;
             buffer.Clear();

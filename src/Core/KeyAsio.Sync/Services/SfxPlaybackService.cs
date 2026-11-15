@@ -34,7 +34,7 @@ public class SfxPlaybackService
         => DispatchPlaybackTo(playbackInfo, ResolveMixer(playbackInfo.IsChord), overrideVolume);
 
     private IMixingSampleProvider ResolveMixer(bool isChord) =>
-        isChord && _appSettings.Sync.Playback.UseSeparateChordVolume
+        isChord && _appSettings.Sync.Playback.SeparateChordVolumeActive
             ? _playbackEngine.ChordMixer : _playbackEngine.EffectMixer;
 
     public void DispatchChord(IReadOnlyList<PlaybackInfo> chord)
@@ -69,7 +69,11 @@ public class SfxPlaybackService
             }
 
             float volume;
-            if (playbackInfo.IsFallback || _appSettings.Sync.Filters.IgnoreLineVolumes)
+            if (playbackInfo.IsFallback)
+            {
+                volume = 0.25f;
+            }
+            else if (_appSettings.Sync.Filters.IgnoreLineVolumes)
             {
                 volume = 1;
             }
@@ -83,7 +87,7 @@ public class SfxPlaybackService
                     volume = playableNode.Volume;
             }
 
-            PlayEffectsAudio(cachedAudio, volume, playableNode.Balance, mixer);
+            PlayEffectsAudio(cachedAudio, volume, playableNode.Balance, mixer, preserveVolume: playbackInfo.IsFallback);
         }
         else
         {
@@ -95,7 +99,8 @@ public class SfxPlaybackService
     public void PlayEffectsAudio(CachedAudio? cachedAudio, float volume, float balance)
         => PlayEffectsAudio(cachedAudio, volume, balance, _playbackEngine.EffectMixer);
 
-    private void PlayEffectsAudio(CachedAudio? cachedAudio, float volume, float balance, IMixingSampleProvider mixer)
+    private void PlayEffectsAudio(CachedAudio? cachedAudio, float volume, float balance, IMixingSampleProvider mixer,
+        bool preserveVolume = false)
     {
         if (cachedAudio is null)
         {
@@ -163,7 +168,7 @@ public class SfxPlaybackService
             return;
         }
 
-        if (_appSettings.Sync.Filters.IgnoreLineVolumes)
+        if (!preserveVolume && _appSettings.Sync.Filters.IgnoreLineVolumes)
         {
             volume = 1;
         }

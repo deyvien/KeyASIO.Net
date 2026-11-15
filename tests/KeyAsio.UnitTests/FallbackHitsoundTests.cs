@@ -86,9 +86,11 @@ public sealed class FallbackHitsoundTests
     [InlineData("empty")]
     [InlineData("silent")]
     [InlineData("zero-volume")]
-    public async Task OptionalFallbackMakesSilentNotesAudible(string reason)
+    [InlineData("silent", true)]
+    public async Task OptionalFallbackMakesSilentNotesAudible(string reason, bool ignoreLineVolumes = false)
     {
         using var f = new Fixture();
+        f.Settings.Sync.Filters.IgnoreLineVolumes = ignoreLineVolumes;
         if (reason != "missing") f.Write("note.wav", reason == "zero-volume" ? .125f : 0, reason == "empty" ? 0 : 64);
         var note = Note("note.wav", volume: reason == "zero-volume" ? 0 : 1);
         f.Audio.RegisterNoteSamples([note]);
@@ -101,7 +103,7 @@ public sealed class FallbackHitsoundTests
         f.Settings.Sync.Playback.UseFallbackHitsounds = true;
         Assert.True(f.Audio.ResolveFallback(original).IsFallback);
         f.Sfx.DispatchPlayback(original);
-        Assert.Equal(.25f, f.Render(), 3);
+        Assert.Equal(.0625f, f.Render(), 3); // Default sample amplitude .25 at fixed 25% fallback gain.
         f.Settings.Sync.Playback.UseFallbackHitsounds = false;
         Assert.Equal(original, f.Audio.ResolveFallback(original));
     }
@@ -133,7 +135,7 @@ public sealed class FallbackHitsoundTests
         Assert.True(f.Audio.ResolveFallback(f.Playback(a)).IsFallback);
         Assert.False(f.Audio.ResolveFallback(f.Playback(b)).IsFallback);
         f.Sfx.DispatchChord([f.Playback(a), f.Playback(b)]);
-        Assert.Equal(.25f, f.Render(), 3);
+        Assert.Equal(.0625f, f.Render(), 3);
     }
 
     [Fact]
