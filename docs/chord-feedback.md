@@ -2,7 +2,7 @@
 
 In **Sync Mode → Mania Hitsounds**, enable **Wait until final chord key**.
 The setting is saved automatically and takes effect without restarting the audio device.
-It defaults to off. **Only play hitsounds for matching notes** is a separate
+It defaults to off. **Only play hitsounds near note timing** is a separate
 setting in the same section, also off by default.
 
 For live mania play, notes whose heads share the same beatmap timestamp form a
@@ -12,7 +12,7 @@ A long note contributes its head, not its release.
 Repeated presses in one lane cannot complete a chord. Incomplete or expired
 groups are not released, including groups containing a lane without an audible sample.
 
-Enable **Only play hitsounds for matching notes** to silence taps outside a
+Enable **Only play hitsounds near note timing** to silence taps outside a
 playable note's hit window. It works with chord grouping on or off: with grouping
 off, matched notes sound individually; with grouping on, chords wait for their
 final key. Leaving note-only filtering off preserves the existing fallback to

@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
   x:Class="KeyAsio.Views.Pages.SyncModePage"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -100,8 +100,8 @@
             <controls:SettingItem
               x:Name="OnlyPlayMatchingNotesSetting"
               Classes="Switch"
-              Header="Only play hitsounds for matching notes"
-              Description="Silence taps outside a note's hit window. Turn off for normal tap sounds. Works independently of final-key chord feedback."
+              Header="Only play hitsounds near note timing"
+              Description="Silence taps outside a note?s hit window. Turn off to hear normal tap feedback between notes."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.OnlyPlayMatchingNotes}" />
           </StackPanel>
