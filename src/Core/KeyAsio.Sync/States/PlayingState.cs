@@ -171,6 +171,7 @@ public class PlayingState : IGameState
         var mixer = _playbackEngine.EffectMixer;
         _sfxPlaybackService.ClearAllLoops(mixer);
         mixer?.RemoveAllMixerInputs();
+        _playbackEngine.ChordMixer?.RemoveAllMixerInputs();
         _beatmapHitsoundLoader.ResetNodes(_gameplaySessionManager.CurrentHitsoundSequencer, ctx.PlayTime);
     }
 

@@ -54,6 +54,8 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                 ClearChordState();
                 PrepareChordState();
             }
+            else if (e.PropertyName == nameof(AppSettingsSyncPlayback.UseSeparateChordVolume))
+                PrepareChordState();
         };
         appSettings.Sync.PropertyChanged += (_, e) =>
         {
@@ -106,7 +108,8 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
 
     public void ProcessInteraction(List<PlaybackInfo> buffer, int keyIndex, int keyTotal)
     {
-        if (_appSettings.Sync.Playback.WaitForFinalChordKey || _appSettings.Sync.Playback.OnlyPlayMatchingNotes)
+        if (_appSettings.Sync.Playback.WaitForFinalChordKey || _appSettings.Sync.Playback.OnlyPlayMatchingNotes ||
+            _appSettings.Sync.Playback.UseSeparateChordVolume)
         {
             ProcessChordInteraction(buffer, keyIndex);
             return;
@@ -262,7 +265,8 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         lock (_chordLock)
         {
             var map = _gameplaySessionManager.OsuFile;
-            if ((!_appSettings.Sync.Playback.WaitForFinalChordKey && !_appSettings.Sync.Playback.OnlyPlayMatchingNotes) || map?.HitObjects == null ||
+            if ((!_appSettings.Sync.Playback.WaitForFinalChordKey && !_appSettings.Sync.Playback.OnlyPlayMatchingNotes &&
+                 !_appSettings.Sync.Playback.UseSeparateChordVolume) || map?.HitObjects == null ||
                 (_chordGate != null && ReferenceEquals(_chordMap, map))) return;
             int columns = (int)map.Difficulty.CircleSize;
             if (columns < 1 || columns > 18) return;
@@ -313,13 +317,14 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                 ChordWindow(map.Difficulty.OverallDifficulty, ctx.PlayMods), groupChords);
             if (!onlyNotes && !(groupChords && result.MatchesNote && result.IsChord))
             {
-                buffer.AddRange(_immediateBuffer);
+                foreach (var immediate in _immediateBuffer)
+                    buffer.Add(immediate with { IsChord = result.MatchesNote && result.IsChord });
                 return;
             }
             foreach (var node in result.Samples)
             {
                 if (_gameplayAudioService.TryGetAudioByNode(node, out var audio))
-                    buffer.Add(new PlaybackInfo(audio, node));
+                    buffer.Add(new PlaybackInfo(audio, node) { IsChord = result.IsChord });
             }
             if (buffer.Count > 1)
                 _logger.LogDebug("Final chord key: releasing {Samples} samples together", buffer.Count);
@@ -339,7 +344,13 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
             if (playTime < firstNode.Offset + 200 &&
                 _gameplayAudioService.TryGetAudioByNode(firstNode, out var cachedSound))
             {
-                buffer.Add(new PlaybackInfo(cachedSound, firstNode));
+                bool isChord;
+                lock (_chordLock)
+                {
+                    PrepareChordState();
+                    isChord = _chordGate?.IsChordSample(firstNode) == true;
+                }
+                buffer.Add(new PlaybackInfo(cachedSound, firstNode) { IsChord = isChord });
             }
 
             if (includeKey)

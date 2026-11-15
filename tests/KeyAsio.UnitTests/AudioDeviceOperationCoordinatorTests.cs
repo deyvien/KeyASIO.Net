@@ -10,6 +10,23 @@ namespace KeyAsio.UnitTests;
 
 public sealed class AudioDeviceOperationCoordinatorTests
 {
+    [Theory]
+    [InlineData(false, .7f)]
+    [InlineData(true, .3f)]
+    public async Task DeviceStartRestoresEffectiveChordVolume(bool enabled, float expected)
+    {
+        var previous = Device("previous");
+        var settings = Settings(previous, 44100);
+        settings.Audio.EffectVolume = 70;
+        settings.Audio.ChordVolume = 30;
+        settings.Sync.Playback.UseSeparateChordVolume = enabled;
+        var engine = new PlaybackEngineHarness(previous, 44100);
+        using var coordinator = CreateCoordinator(settings, new Mock<IAppSettingsPersistence>(),
+            engine, new Mock<IGameplayAudioCache>());
+        await coordinator.ApplyAsync(Device("new"), 48000, TestContext.Current.CancellationToken);
+        engine.Engine.VerifySet(x => x.ChordVolume = expected, Times.Once);
+    }
+
     [Fact]
     public async Task ApplyAsync_StartsBeforeCommittingSettings()
     {

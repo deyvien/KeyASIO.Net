@@ -6,6 +6,19 @@ namespace KeyAsio.UnitTests;
 
 public sealed class ManiaChordGateTests
 {
+    [Fact]
+    public void ChordVolumeClassificationUsesDistinctChartLanesNotSampleCount()
+    {
+        var singleSamples = new[] { Sample(1000), Sample(1000, "clap"), Sample(1000, "finish") };
+        var chordSample = Sample(2000);
+        var gate = new ManiaChordGate([(1000, 0), (1000, 0), (2000, 0), (2000, 1)],
+            singleSamples.Append(chordSample), 4, 0);
+        Assert.All(singleSamples, sample => Assert.False(gate.IsChordSample(sample)));
+        Assert.True(gate.IsChordSample(chordSample));
+        var storyboard = PlaybackEvent.Create(Guid.NewGuid(), 2000, 1, 0, "story.wav", ResourceOwner.Beatmap, SampleLayer.Sampling);
+        Assert.False(gate.IsChordSample(storyboard));
+    }
+
     private static SampleEvent Sample(double time, string name = "normal-hitnormal") =>
         PlaybackEvent.Create(Guid.NewGuid(), time, 1, 0, name, ResourceOwner.UserSkin, SampleLayer.Primary);
 

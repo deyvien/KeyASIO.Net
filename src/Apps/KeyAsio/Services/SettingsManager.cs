@@ -96,12 +96,23 @@ public class SettingsManager : IDisposable
             else if (e.PropertyName == nameof(AppSettingsAudio.EffectVolume))
             {
                 _playbackEngine.EffectVolume = _appSettings.Audio.EffectVolume / 100f;
+                ApplyChordVolume();
+                DebounceSave();
+            }
+            else if (e.PropertyName == nameof(AppSettingsAudio.ChordVolume))
+            {
+                ApplyChordVolume();
                 DebounceSave();
             }
         }
         else if (sender is AppSettingsSyncPlayback)
         {
-            if (e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceFactor) ||
+            if (e.PropertyName == nameof(AppSettingsSyncPlayback.UseSeparateChordVolume))
+            {
+                ApplyChordVolume();
+                DebounceSave();
+            }
+            else if (e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceFactor) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceMode) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes))
@@ -138,6 +149,9 @@ public class SettingsManager : IDisposable
             }
         }
     }
+
+    private void ApplyChordVolume() => _playbackEngine.ChordVolume =
+        (_appSettings.Sync.Playback.UseSeparateChordVolume ? _appSettings.Audio.ChordVolume : _appSettings.Audio.EffectVolume) / 100f;
 
     private void HandleSaveException(Exception ex)
     {

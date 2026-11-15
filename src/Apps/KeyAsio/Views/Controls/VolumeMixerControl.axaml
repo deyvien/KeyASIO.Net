@@ -24,7 +24,7 @@
       BoxShadow="{DynamicResource SukiPopupShadow}"
       CornerRadius="15" />
     <Border
-      MinWidth="202"
+      MinWidth="280"
       MinHeight="280"
       Padding="20"
       ClipToBounds="True"
@@ -47,7 +47,7 @@
         <Grid
           Grid.Row="2"
           Margin="0,20,0,0"
-          ColumnDefinitions="*,*,*"
+          ColumnDefinitions="*,*,*,*"
           RowDefinitions="Auto,*,Auto">
 
           <!--  MASTER  -->
@@ -118,6 +118,32 @@
             Grid.Column="2"
             HorizontalAlignment="Center"
             Text="{Binding AppSettings.Audio.EffectVolume, StringFormat='{}{0}%'}"
+            TextAlignment="Center" />
+
+          <!-- CHORDS: independent of the normal effects fader when enabled. -->
+          <TextBlock
+            Grid.Row="0"
+            Grid.Column="3"
+            HorizontalAlignment="Center"
+            Text="Chords"
+            FontSize="11"
+            ToolTip.Tip="Enable Use separate chord volume in Sync Mode → Mania Hitsounds." />
+          <Slider
+            x:Name="ChordVolumeSlider"
+            Grid.Row="1"
+            Grid.Column="3"
+            Margin="0,5"
+            Maximum="{Binding AppSettings.Audio.EnableExtendedVolume, Converter={StaticResource ExtendedVolumeConverter}}"
+            Orientation="Vertical"
+            IsEnabled="{Binding AppSettings.Sync.Playback.UseSeparateChordVolume}"
+            PointerWheelChanged="Slider_PointerWheelChanged"
+            Value="{Binding AppSettings.Audio.ChordVolume}"
+            ToolTip.Tip="Chord volume; Master still applies." />
+          <TextBlock
+            Grid.Row="2"
+            Grid.Column="3"
+            HorizontalAlignment="Center"
+            Text="{Binding AppSettings.Audio.ChordVolume, StringFormat='{}{0}%'}"
             TextAlignment="Center" />
 
         </Grid>

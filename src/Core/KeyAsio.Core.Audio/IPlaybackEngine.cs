@@ -16,6 +16,7 @@ public interface IPlaybackEngine : IMusicPlaybackSink, IDisposable
     WaveFormat SourceWaveFormat { get; }
 
     IMixingSampleProvider EffectMixer { get; }
+    IMixingSampleProvider ChordMixer { get; }
     IMixingSampleProvider MusicMixer { get; }
     IMixingSampleProvider RootMixer { get; }
     ISampleProvider RootSampleProvider { get; }
@@ -23,6 +24,7 @@ public interface IPlaybackEngine : IMusicPlaybackSink, IDisposable
     LimiterType LimiterType { get; set; }
     float MainVolume { get; set; }
     float EffectVolume { get; set; }
+    float ChordVolume { get; set; }
     float MusicVolume { get; set; }
 
     void StartDevice(DeviceDescription? deviceDescription, WaveFormat? waveFormat = null);

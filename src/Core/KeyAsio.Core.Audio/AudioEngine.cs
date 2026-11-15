@@ -17,6 +17,7 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
     private SynchronizationContext? _context;
 
     private readonly EnhancedVolumeSampleProvider _effectVolumeSampleProvider = new(null) { ExcludeFromPool = true };
+    private readonly EnhancedVolumeSampleProvider _chordVolumeSampleProvider = new(null) { ExcludeFromPool = true };
     private readonly EnhancedVolumeSampleProvider _musicVolumeSampleProvider = new(null) { ExcludeFromPool = true };
     private readonly EnhancedVolumeSampleProvider _mainVolumeSampleProvider = new(null) { ExcludeFromPool = true };
     private DynamicLimiterProvider? _limiterProvider;
@@ -49,6 +50,7 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
     public WaveFormat SourceWaveFormat { get; private set; } = null!;
 
     public IMixingSampleProvider EffectMixer { get; private set; } = null!;
+    public IMixingSampleProvider ChordMixer { get; private set; } = null!;
     public IMixingSampleProvider MusicMixer { get; private set; } = null!;
     public IMixingSampleProvider RootMixer { get; private set; } = null!;
     public ISampleProvider RootSampleProvider { get; private set; } = null!;
@@ -79,6 +81,12 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
     {
         get => _musicVolumeSampleProvider.Volume;
         set => _musicVolumeSampleProvider.Volume = value;
+    }
+
+    public float ChordVolume
+    {
+        get => _chordVolumeSampleProvider.Volume;
+        set => _chordVolumeSampleProvider.Volume = value;
     }
 
     public void StartDevice(DeviceDescription? deviceDescription, WaveFormat? waveFormat = null)
@@ -143,6 +151,13 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
             };
             _effectVolumeSampleProvider.Source = EffectMixer;
 
+            ChordMixer = new QueueMixingSampleProvider(EngineWaveFormat)
+            {
+                ReadFully = true,
+                WantsKeep = true
+            };
+            _chordVolumeSampleProvider.Source = ChordMixer;
+
             MusicMixer = new QueueMixingSampleProvider(EngineWaveFormat)
             {
                 ReadFully = true,
@@ -150,6 +165,7 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
             };
             _musicVolumeSampleProvider.Source = MusicMixer;
             RootMixer.AddMixerInput(_effectVolumeSampleProvider);
+            RootMixer.AddMixerInput(_chordVolumeSampleProvider);
             RootMixer.AddMixerInput(_musicVolumeSampleProvider);
 
             _mainVolumeSampleProvider.Source = RootMixer;
@@ -158,6 +174,7 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
         else
         {
             _effectVolumeSampleProvider.Source = EffectMixer;
+            _chordVolumeSampleProvider.Source = ChordMixer;
             _musicVolumeSampleProvider.Source = MusicMixer;
             _mainVolumeSampleProvider.Source = RootMixer;
             if (_limiterProvider == null)
@@ -248,6 +265,7 @@ public class AudioEngine : IPlaybackEngine, INotifyPropertyChanged
 
         _limiterProvider = null;
         _effectVolumeSampleProvider.Source = null;
+        _chordVolumeSampleProvider.Source = null;
         _musicVolumeSampleProvider.Source = null;
         _mainVolumeSampleProvider.Source = null;
 

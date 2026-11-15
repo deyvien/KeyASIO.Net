@@ -104,6 +104,13 @@
               Description="Silence taps outside a note’s hit window. Turn off to hear normal tap feedback between notes."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.OnlyPlayMatchingNotes}" />
+            <controls:SettingItem
+              x:Name="UseSeparateChordVolumeSetting"
+              Classes="Switch"
+              Header="Use separate chord volume"
+              Description="Adjust Chords in the bottom-left volume box independently of normal hitsounds. Master volume affects both."
+              Icon="VolumeHigh"
+              IsChecked="{Binding AppSettings.Sync.Playback.UseSeparateChordVolume}" />
           </StackPanel>
         </suki:GroupBox>
       </suki:GlassCard>

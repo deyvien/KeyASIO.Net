@@ -19,11 +19,15 @@ namespace KeyAsio.UnitTests;
 public sealed class ManiaChordIntegrationTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task TapFeedbackAndChordGroupingAreIndependent(bool grouped, bool noteOnly)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public async Task TapFeedbackAndChordGroupingAreIndependent(bool grouped, bool noteOnly, bool separateVolume)
     {
         var folder = Directory.CreateTempSubdirectory().FullName;
         try
@@ -63,13 +67,16 @@ public sealed class ManiaChordIntegrationTests
             var settings = new AppSettings();
             settings.Sync.Playback.WaitForFinalChordKey = grouped;
             settings.Sync.Playback.OnlyPlayMatchingNotes = noteOnly;
+            settings.Sync.Playback.UseSeparateChordVolume = separateVolume;
             var ctx = new SyncSessionContext(settings) { OsuStatus = OsuMemoryStatus.Playing, IsStarted = true };
             var mixer = new QueueMixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)) { ReadFully = true };
+            var chordMixer = new QueueMixingSampleProvider(mixer.WaveFormat) { ReadFully = true };
             var engine = new Mock<IPlaybackEngine>();
             engine.SetupGet(x => x.CurrentDevice).Returns(Mock.Of<IWavePlayer>());
             engine.SetupGet(x => x.EngineWaveFormat).Returns(format);
             engine.SetupGet(x => x.SourceWaveFormat).Returns(format);
             engine.SetupGet(x => x.EffectMixer).Returns(mixer);
+            engine.SetupGet(x => x.ChordMixer).Returns(chordMixer);
             var runtime = new Mock<IPlaybackRuntimeState>();
             runtime.SetupGet(x => x.SelectedSkinFolder).Returns(folder);
             using var audio = new GameplayAudioService(NullLogger<GameplayAudioService>.Instance, ctx, settings,
@@ -99,7 +106,11 @@ public sealed class ManiaChordIntegrationTests
             // Before a note's window, normal mode selects the same next-lane sample as upstream.
             Press(0, 500);
             Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
-            if (!noteOnly) Assert.Same(session.KeyList[0], buffer[0].PlaybackEvent);
+            if (!noteOnly)
+            {
+                Assert.Same(session.KeyList[0], buffer[0].PlaybackEvent);
+                Assert.False(buffer[0].IsChord); // Free taps do not inherit the upcoming sample's chord level.
+            }
             Press(3, 510);
             Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
             if (!noteOnly) Assert.Same(session.KeyList[4], buffer[0].PlaybackEvent);
@@ -108,10 +119,16 @@ public sealed class ManiaChordIntegrationTests
             Assert.Equal(grouped ? 0 : 1, buffer.Count);
             Press(2, 1020);
             Assert.Equal(grouped ? 2 : 1, buffer.Count);
-            sfx.DispatchChord(buffer);
+            if (separateVolume) Assert.All(buffer, x => Assert.True(x.IsChord));
+            if (grouped) sfx.DispatchChord(buffer);
+            else foreach (var item in buffer) sfx.DispatchPlayback(item);
             var output = new float[16];
             mixer.Read(output, 0, output.Length);
-            Assert.Contains(output, x => Math.Abs(x) > .01f);
+            if (separateVolume) Assert.All(output, x => Assert.Equal(0, x));
+            else Assert.Contains(output, x => Math.Abs(x) > .01f);
+            chordMixer.Read(output, 0, output.Length);
+            if (separateVolume) Assert.Contains(output, x => Math.Abs(x) > .01f);
+            else Assert.All(output, x => Assert.Equal(0, x));
 
             Press(0, 1490); // Hold tail is not another chord head; unfiltered tapping still works.
             Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
@@ -121,6 +138,7 @@ public sealed class ManiaChordIntegrationTests
             Assert.Equal(grouped ? 2 : 1, buffer.Count);
             Press(3, 3000);
             Assert.Single(buffer);
+            Assert.False(buffer[0].IsChord);
             Press(3, 3001); // Repeated single taps retain the normal next-sample fallback unless filtered.
             Assert.Equal(noteOnly ? 0 : 1, buffer.Count);
             if (!noteOnly) Assert.Same(session.KeyList[5], buffer[0].PlaybackEvent);
@@ -159,6 +177,18 @@ public sealed class ManiaChordIntegrationTests
             sequencer.SeekTo(0);
             Press(0, 1000);
             Assert.Single(buffer);
+
+            settings.Sync.Playback.UseSeparateChordVolume = true;
+            sequencer.SeekTo(0);
+            ctx.BaseMemoryTime = 1000;
+            buffer.Clear();
+            sequencer.ProcessAutoPlay(buffer, false);
+            Assert.Equal(2, buffer.Count);
+            Assert.All(buffer, x => Assert.True(x.IsChord));
+            sfx.DispatchChord(buffer);
+            session.Stop();
+            chordMixer.Read(output, 0, output.Length);
+            Assert.All(output, x => Assert.Equal(0, x)); // Pending chord audio is cleared on session stop.
         }
         finally { Directory.Delete(folder, true); }
     }
