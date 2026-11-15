@@ -24,6 +24,7 @@ internal sealed class ManiaChordGate
     private readonly HashSet<Chord> _pending = new();
     private double _lastTime = double.NegativeInfinity;
     private readonly int _keyCount;
+    private readonly HashSet<double> _chordTimes;
 
     public ManiaChordGate(IEnumerable<(double Offset, int Lane)> heads,
         IEnumerable<SampleEvent> samples, int keyCount, double startTime)
@@ -38,7 +39,11 @@ internal sealed class ManiaChordGate
             .ToArray();
         _lanes = Enumerable.Range(0, keyCount).ToDictionary(lane => lane,
             lane => _chords.Where(x => x.Lanes.Contains(lane)).ToArray());
+        _chordTimes = _chords.Where(x => x.Lanes.Length > 1).Select(x => x.Offset).ToHashSet();
     }
+
+    public bool IsChordSample(PlaybackEvent sample) =>
+        sample is SampleEvent { Layer: SampleLayer.Primary } && _chordTimes.Contains(sample.Offset);
 
     // Called under the sequencer's chord lock. No audio data is retained between presses.
     public IReadOnlyList<SampleEvent> Press(int lane, double time, double window)

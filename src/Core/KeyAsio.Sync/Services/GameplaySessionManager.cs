@@ -200,6 +200,7 @@ public class GameplaySessionManager
         var mixer = _audioEngine.EffectMixer;
         _sfxPlaybackService.ClearAllLoops(mixer);
         mixer?.RemoveAllMixerInputs();
+        _audioEngine.ChordMixer?.RemoveAllMixerInputs();
 
         SessionStopped?.Invoke();
 

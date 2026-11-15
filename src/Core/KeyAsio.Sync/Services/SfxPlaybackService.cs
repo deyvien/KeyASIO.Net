@@ -29,12 +29,16 @@ public class SfxPlaybackService
     }
 
     public void DispatchPlayback(PlaybackInfo playbackInfo, float? overrideVolume = null)
-        => DispatchPlaybackTo(playbackInfo, _playbackEngine.EffectMixer, overrideVolume);
+        => DispatchPlaybackTo(playbackInfo, ResolveMixer(playbackInfo.IsChord), overrideVolume);
+
+    private IMixingSampleProvider ResolveMixer(bool isChord) =>
+        isChord && _appSettings.Sync.Playback.UseSeparateChordVolume
+            ? _playbackEngine.ChordMixer : _playbackEngine.EffectMixer;
 
     public void DispatchChord(IReadOnlyList<PlaybackInfo> chord)
     {
         if (chord.Count == 0) return;
-        var mixer = _playbackEngine.EffectMixer;
+        var mixer = ResolveMixer(chord.All(x => x.IsChord));
         var group = new GroupedSampleProvider(mixer.WaveFormat);
         try
         {

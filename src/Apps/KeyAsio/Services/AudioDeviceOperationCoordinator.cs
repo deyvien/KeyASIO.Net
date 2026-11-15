@@ -189,6 +189,8 @@ public sealed class AudioDeviceOperationCoordinator : IAudioDeviceOperationCoord
         _engine.MainVolume = _settings.Audio.MasterVolume / 100f;
         _engine.MusicVolume = _settings.Audio.MusicVolume / 100f;
         _engine.EffectVolume = _settings.Audio.EffectVolume / 100f;
+        _engine.ChordVolume = (_settings.Sync.Playback.UseSeparateChordVolume
+            ? _settings.Audio.ChordVolume : _settings.Audio.EffectVolume) / 100f;
         _engine.StartDevice(device, new WaveFormat(sampleRate, 2));
     }
 

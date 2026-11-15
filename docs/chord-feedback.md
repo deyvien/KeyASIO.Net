@@ -37,3 +37,19 @@ this follows the normal immediate path and does not repair replay detection itse
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/2.
 Independent note filtering: https://github.com/deyvien/KeyASIO.Net/issues/4.
+
+## Separate chord volume
+
+Enable **Sync Mode → Mania Hitsounds → Use separate chord volume**, then open
+the bottom-left volume box and adjust **Chords**. The normal effects slider
+continues to control single notes, free taps and other effects. Chords have an
+independent level, so muting normal effects does not mute chords. Master volume
+still affects both. The chord fader follows the existing 100%/150% volume range.
+
+The option defaults to off, with a saved chord level of 100%. Off restores the
+shared effects level and disables the Chords fader without forgetting its value.
+It works with final-key grouping on or off and also classifies scheduled mania
+note samples. A chord is defined by multiple chart lanes at the same head time,
+not by how many audio samples a note contains.
+
+Tracked by https://github.com/deyvien/KeyASIO.Net/issues/6.

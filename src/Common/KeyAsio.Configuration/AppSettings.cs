@@ -97,6 +97,9 @@ public partial class AppSettingsAudio : INotifyPropertyChanged
     [Description("Effect track volume.")]
     public int EffectVolume { get; set; } = 100;
 
+    [Description("Mania chord volume when separate chord volume is enabled. Master volume still applies.")]
+    public int ChordVolume { get; set; } = 100;
+
     [Description("Extend the maximum volume limit to 150%.")]
     public bool EnableExtendedVolume { get; set; }
 }
@@ -154,6 +157,9 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
 
     [Description("Mania: silence taps that do not match a playable beatmap note. Independent of final-key chord feedback; off preserves normal tap sounds.")]
     public bool OnlyPlayMatchingNotes { get; set; }
+
+    [Description("Use the separate Chords fader for mania chord notes, independently of final-key grouping.")]
+    public bool UseSeparateChordVolume { get; set; }
 
     [Description("Slider‑tail playback behavior. " +
                  "Normal: always play; KeepReverse: play only on multi‑reverse sliders; Ignore: never play.")]
