@@ -6,6 +6,21 @@ namespace KeyAsio.UnitTests;
 public sealed class PlayingStateTests
 {
     [Theory]
+    [InlineData(GameClientType.Stable, 1, 1, 0, true)]
+    [InlineData(GameClientType.Stable, 1, 10, 2, true)]
+    [InlineData(GameClientType.Stable, 0, 10, 0, false)]
+    [InlineData(GameClientType.Stable, 1, 0, 0, false)]
+    [InlineData(GameClientType.Stable, 1, 2, 3, false)]
+    [InlineData(GameClientType.Stable, 1, 2, -1, false)]
+    [InlineData(GameClientType.Lazer, 0, 1, 0, true)]
+    [InlineData(GameClientType.Lazer, 0, 10, 2, false)]
+    [InlineData(GameClientType.Lazer, 0, 0, 0, false)]
+    [InlineData(GameClientType.Lazer, 0, 2, 3, false)]
+    public void RampComboBreakIncludesShortCombosAndPreservesSourceGuards(
+        GameClientType client, int score, int oldCombo, int newCombo, bool expected)
+        => Assert.Equal(expected, PlayingState.IsComboBreak(client, score, oldCombo, newCombo));
+
+    [Theory]
     [InlineData(0, 30, 0, false)]
     [InlineData(1, 19, 0, false)]
     [InlineData(1, 20, 0, true)]

@@ -119,6 +119,7 @@ public class SettingsManager : IDisposable
                 e.PropertyName == nameof(AppSettingsSyncPlayback.UseFallbackHitsounds) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.RampSingleNoteVolume) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.RampChordVolume) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.ResetVolumeRampOnComboBreak) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.SingleNoteRampCurve) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.SingleNoteRampNotes))
             {

@@ -10,6 +10,7 @@ using KeyAsio.Sync.Abstractions;
 using KeyAsio.Sync.AudioProviders;
 using KeyAsio.Sync.Models;
 using KeyAsio.Sync.Services;
+using KeyAsio.Sync.States;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NAudio.Wave;
@@ -286,6 +287,59 @@ public sealed class ManiaChordIntegrationTests
             CheckChordGain(.1f);
             Press(0, 1990); Press(2, 2010);
             CheckChordGain((float)Math.Pow(10, -8d / 9));
+
+            // Actual PlayingState combo handling resets both types, even with its SFX muted.
+            session.InitializeProviders(sequencer, sequencer, sequencer, sequencer);
+            settings.Sync.Filters.DisableComboBreakSfx = true;
+            var playing = new PlayingState(NullLogger<PlayingState>.Instance, settings, engine.Object,
+                loader, sfx, runtime.Object, session, audio);
+            ctx.Score = 100;
+            settings.Sync.Playback.SingleNoteRampCurve = KeyAsio.Configuration.Models.SingleNoteRampCurve.Linear;
+            settings.Sync.Playback.SingleNoteRampNotes = 3;
+            settings.Sync.Playback.RampSingleNoteVolume = true;
+            foreach (bool reset in new[] { false, true })
+            {
+                settings.Sync.Playback.ResetVolumeRampOnComboBreak = reset;
+                sequencer.SeekTo(0);
+                Press(3, 3000);
+                Press(3, 4000);
+                Assert.Equal(2f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
+                playing.OnComboChanged(ctx, 2, 0); // Below the sound-effect threshold.
+                Press(0, 5000);
+                Assert.Equal(reset ? 1f / 3 : 1, Assert.Single(buffer).VolumeRampGain!.Value, 6);
+                sequencer.SeekTo(0);
+                Press(0, 990); Press(2, 1010);
+                Press(0, 1990); Press(2, 2010);
+                CheckChordGain(2f / 3);
+                playing.OnComboChanged(ctx, 2, 0);
+                Press(0, 2490); Press(2, 2500); Press(3, 2520);
+                CheckChordGain(reset ? 1f / 3 : 1);
+            }
+            // Resetting a ramp must not cancel a chord already waiting for its final key.
+            settings.Sync.Playback.WaitForFinalChordKey = true;
+            sequencer.SeekTo(0);
+            Press(0, 990); Press(2, 1010);
+            Press(0, 1990);
+            Assert.Empty(buffer);
+            playing.OnComboChanged(ctx, 1, 0);
+            Press(2, 2010);
+            Assert.Equal(2, buffer.Count);
+            CheckChordGain(1f / 3);
+
+            // Results-screen/stopped-session notifications cannot change an active ramp.
+            foreach (bool stopped in new[] { false, true })
+            {
+                sequencer.SeekTo(0);
+                Press(3, 3000);
+                ctx.OsuStatus = stopped ? OsuMemoryStatus.Playing : OsuMemoryStatus.ResultsScreen;
+                ctx.IsStarted = !stopped;
+                playing.OnComboChanged(ctx, 1, 0);
+                ctx.IsStarted = true;
+                ctx.OsuStatus = OsuMemoryStatus.Playing;
+                Press(3, 4000);
+                Assert.Equal(2f / 3, Assert.Single(buffer).VolumeRampGain!.Value, 6);
+            }
+            settings.Sync.Playback.RampSingleNoteVolume = false;
             settings.Sync.Playback.RampChordVolume = false;
 
             settings.Sync.Playback.UseSeparateChordVolume = true;

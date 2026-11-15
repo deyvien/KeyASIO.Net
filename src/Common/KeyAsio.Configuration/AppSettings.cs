@@ -167,7 +167,7 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Use a default hitsound when all samples belonging to a note are missing or silent. Existing audible note sounds are not doubled.")]
     public bool UseFallbackHitsounds { get; set; }
 
-    [Description("Ramp consecutive played single notes up to each note's authored volume. Chords reset the ramp and are not ramped.")]
+    [Description("Ramp consecutive played single notes up to each note's authored volume. Chords reset this run.")]
     public bool RampSingleNoteVolume { get; set; }
 
     [Description("Ramp consecutive chords using the shared curve and count. Each chord counts once; single notes reset the run.")]
@@ -175,6 +175,9 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
 
     [YamlDotNet.Serialization.YamlIgnore]
     public bool AnyVolumeRampActive => RampSingleNoteVolume || RampChordVolume;
+
+    [Description("Restart volume ramp-up after a gameplay combo break. Applies to both enabled note types.")]
+    public bool ResetVolumeRampOnComboBreak { get; set; }
 
     public SingleNoteRampCurve SingleNoteRampCurve { get; set; } = SingleNoteRampCurve.Linear;
 

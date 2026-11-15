@@ -139,6 +139,13 @@
                   IsChecked="{Binding AppSettings.Sync.Playback.RampChordVolume}" />
                 <StackPanel Margin="24,0,0,0" Spacing="10"
                             IsEnabled="{Binding AppSettings.Sync.Playback.AnyVolumeRampActive}">
+                  <controls:SettingItem
+                    x:Name="ResetVolumeRampOnComboBreakSetting"
+                    Classes="Switch"
+                    Header="Reset on combo break"
+                    Description="Restart the enabled volume ramps when your combo breaks, even for short combos."
+                    Icon="Refresh"
+                    IsChecked="{Binding AppSettings.Sync.Playback.ResetVolumeRampOnComboBreak}" />
                   <controls:SettingItem Header="Ramp mode" Icon="Tune">
                     <ComboBox MinWidth="150"
                               ItemsSource="{Binding SingleNoteRampCurves}"

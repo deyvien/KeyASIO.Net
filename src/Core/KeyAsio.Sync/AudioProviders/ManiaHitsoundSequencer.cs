@@ -357,6 +357,13 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         _chordRamp.Reset();
     }
 
+    internal void OnComboBreak()
+    {
+        if (!_appSettings.Sync.Playback.ResetVolumeRampOnComboBreak) return;
+        // Keep pending chord presses intact: only their eventual ramp gain restarts.
+        lock (_chordLock) ResetVolumeRamps();
+    }
+
     private void ObserveRampType(ManiaChordGate.PressResult note)
     {
         if (!note.MatchesNote) return;

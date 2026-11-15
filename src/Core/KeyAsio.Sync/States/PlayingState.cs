@@ -137,14 +137,26 @@ public class PlayingState : IGameState
 
     public void OnComboChanged(SyncSessionContext ctx, int oldCombo, int newCombo)
     {
+        if (!ctx.IsStarted || ctx.OsuStatus != OsuMemoryStatus.Playing) return;
+        if (IsComboBreak(ctx.ClientType, ctx.Score, oldCombo, newCombo) &&
+            _gameplaySessionManager.CurrentHitsoundSequencer is ManiaHitsoundSequencer mania)
+            mania.OnComboBreak();
+
         if (_disableComboBreakSfx) return;
-        if (!ctx.IsStarted) return;
         if (!ShouldPlayComboBreak(ctx.ClientType, ctx.Score, oldCombo, newCombo)) return;
 
         if (_gameplayAudioService.TryGetCachedAudio("combobreak", out var cachedAudio))
         {
             _sfxPlaybackService.PlayEffectsAudio(cachedAudio, 1, 0);
         }
+    }
+
+    internal static bool IsComboBreak(GameClientType clientType, int score, int oldCombo, int newCombo)
+    {
+        if (oldCombo <= 0 || newCombo < 0) return false;
+        return clientType == GameClientType.Lazer
+            ? newCombo == 0
+            : score != 0 && newCombo < oldCombo;
     }
 
     internal static bool ShouldPlayComboBreak(GameClientType clientType, int score, int oldCombo, int newCombo)
