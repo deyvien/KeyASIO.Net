@@ -96,6 +96,15 @@ lanes reuse that gain, including interleaved lanes from adjacent chords.
 Multiple sound components count once. Free taps do not advance the count.
 Seek, retry, map, pause and ramp-setting changes reset progress.
 
+The nested **Reset on combo break** option restarts both enabled ramps at
+their first step after a gameplay combo break. It defaults to off and is
+available while at least one note-type toggle is on. It includes short combos
+and works even when combo-break sound effects are disabled. Pending final-key
+chords remain intact. Stable uses a combo decrease with a nonzero score;
+lazer uses a positive combo dropping to zero, following their existing source
+semantics. Detection follows the game's reported combo update, so audio that
+has already started is not changed retroactively.
+
 Both curves start at 1/N of the note's authored volume and reach its full
 authored volume on event N. Linear uses equal steps: N=3 gives 1/3, 2/3, 1.
 Exponential uses a constant multiplier: N=10 rises from 10% to 100% by its
@@ -108,3 +117,4 @@ ramped, so an authored zero remains silent in this mode.
 
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/11.
 Chord support and general controls: https://github.com/deyvien/KeyASIO.Net/issues/13.
+Optional combo-break reset: https://github.com/deyvien/KeyASIO.Net/issues/15.
