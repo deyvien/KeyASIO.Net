@@ -156,6 +156,80 @@ public sealed class FallbackHitsoundTests
         Assert.Equal(.125f, f.Render(), 3);
     }
 
+    [Theory]
+    [InlineData(false, false, 0f)]
+    [InlineData(false, true, .4f)]
+    [InlineData(true, false, 0f)]
+    [InlineData(true, true, 0f)]
+    [InlineData(true, false, .4f)]
+    [InlineData(true, true, .4f)]
+    public async Task MapperOverrideUsesFullCeilingOnlyWhenEnabled(bool enabled, bool chord, float mapperVolume)
+    {
+        using var f = new Fixture();
+        f.Settings.Sync.Playback.RampOverrideMapperVolume = enabled;
+        f.Write("note.wav", .25f);
+        var note = Note("note.wav", volume: mapperVolume);
+        f.Audio.RegisterNoteSamples([note]);
+        await f.Cache(note);
+        f.Sfx.DispatchPlayback(f.Playback(note) with { IsChord = chord, VolumeRampGain = .5f });
+        Assert.Equal(.25f * (enabled ? 1 : mapperVolume) * .5f, f.Render(), 3);
+    }
+
+    [Theory]
+    [InlineData("missing", false)]
+    [InlineData("missing", true)]
+    [InlineData("silent", false)]
+    [InlineData("silent", true)]
+    [InlineData("audible", false)]
+    [InlineData("audible", true)]
+    public async Task MapperOverrideRestoresZeroVolumeNotesAndPreservesQuietFallback(string sample, bool chord)
+    {
+        using var f = new Fixture();
+        f.Settings.Sync.Playback.UseFallbackHitsounds = true;
+        f.Settings.Sync.Playback.RampOverrideMapperVolume = true;
+        if (sample != "missing") f.Write("note.wav", sample == "audible" ? .125f : 0);
+        var note = Note("note.wav", volume: 0);
+        f.Audio.RegisterNoteSamples([note]);
+        await f.Cache(note);
+        var playback = f.Playback(note) with { IsChord = chord, VolumeRampGain = .5f };
+        Assert.Equal(sample != "audible", f.Audio.ResolveFallback(playback).IsFallback);
+        f.Sfx.DispatchPlayback(playback);
+        Assert.Equal(sample == "audible" ? .0625f : .03125f, f.Render(), 3);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MapperOverrideDoesNotChangeUnrampedNotesOrFreeTaps(bool fallback)
+    {
+        using var f = new Fixture();
+        f.Settings.Sync.Playback.UseFallbackHitsounds = fallback;
+        f.Settings.Sync.Playback.RampOverrideMapperVolume = true;
+        f.Write("note.wav", .125f);
+        var note = Note("note.wav", volume: 0);
+        f.Audio.RegisterNoteSamples([note]);
+        await f.Cache(note);
+        f.Sfx.DispatchPlayback(f.Playback(note)); // No ramp metadata, even with the override saved on.
+        Assert.Equal(fallback ? .0625f : 0, f.Render(), 3);
+    }
+
+    [Fact]
+    public async Task MapperOverrideKeepsAudibleSiblingWithoutAddingFallback()
+    {
+        using var f = new Fixture();
+        f.Settings.Sync.Playback.UseFallbackHitsounds = true;
+        f.Settings.Sync.Playback.RampOverrideMapperVolume = true;
+        f.Write("silent.wav", 0); f.Write("audible.wav", .125f);
+        var id = Guid.NewGuid();
+        var a = Note("silent.wav", id, 0); var b = Note("audible.wav", id, 0);
+        f.Audio.RegisterNoteSamples([a, b]);
+        await f.Cache(a, b);
+        var first = f.Playback(a) with { VolumeRampGain = .5f };
+        Assert.False(f.Audio.ResolveFallback(first).IsFallback);
+        f.Sfx.DispatchChord([first, f.Playback(b) with { VolumeRampGain = .5f }]);
+        Assert.Equal(.0625f, f.Render(), 3);
+    }
+
     [Fact]
     public async Task MultipleSilentComponentsReceiveOneFallbackPerNote()
     {

@@ -14,6 +14,30 @@ namespace KeyAsio.UnitTests;
 public sealed class ChordSettingsTests
 {
     [AvaloniaFact]
+    public async Task MapperOverrideDefaultsOffAndPersistsBothValues()
+    {
+        var folder = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var converter = MyYamlConfigurationConverter.Instance;
+            var settings = ConfigurationFactory.GetConfiguration<AppSettings>(folder, "appsettings.yaml", converter);
+            Assert.False(settings.Sync.Playback.RampOverrideMapperVolume);
+            using var manager = new SettingsManager(NullLogger<SettingsManager>.Instance, settings,
+                Mock.Of<IPlaybackEngine>(), Mock.Of<ISukiToastManager>());
+            foreach (bool enabled in new[] { true, false })
+            {
+                settings.Sync.Playback.RampOverrideMapperVolume = enabled;
+                await Task.Delay(750);
+                Dispatcher.UIThread.RunJobs();
+                var saved = (AppSettings)converter.DeserializeSettings(await File.ReadAllTextAsync(Path.Combine(folder, "appsettings.yaml")), typeof(AppSettings));
+                Assert.Equal(enabled, saved.Sync.Playback.RampOverrideMapperVolume);
+                Assert.False(saved.Sync.Playback.AnyVolumeRampActive);
+            }
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [AvaloniaFact]
     public async Task ComboResetDefaultsOffAndPersistsIndependentlyOfRampToggles()
     {
         var folder = Directory.CreateTempSubdirectory().FullName;
