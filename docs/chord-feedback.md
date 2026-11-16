@@ -115,6 +115,16 @@ volumes is on; Master and hitsound faders still apply afterward. Fallback
 sounds retain their quieter cap and cannot exceed the mapper ceiling while
 ramped, so an authored zero remains silent in this mode.
 
+Enable the nested **Override mapper volume to 100%** option to use a 100%
+ceiling instead for either enabled ramp. It defaults to off, preserving the
+mapper-volume behavior described above. This also lets zero-volume notes sound:
+audible original samples are retained, and missing/silent samples can use the
+existing fallback option. Fallback still has its quieter 25% cap before ramp
+gain; your Master, effects and chord faders still apply. Notes without an active
+ramp and free taps are unaffected. Both nested options are disabled when
+neither note type is enabled, without forgetting their saved choices.
+
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/11.
 Chord support and general controls: https://github.com/deyvien/KeyASIO.Net/issues/13.
 Optional combo-break reset: https://github.com/deyvien/KeyASIO.Net/issues/15.
+Optional mapper-volume override: https://github.com/deyvien/KeyASIO.Net/issues/16.

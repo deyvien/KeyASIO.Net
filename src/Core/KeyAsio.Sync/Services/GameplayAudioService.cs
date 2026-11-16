@@ -120,12 +120,14 @@ public class GameplayAudioService : IGameplayAudioCache, IDisposable
 
         var fallback = _defaultFallback;
         if (fallback == null || fallback.IsDisposingOrDisposed) return playback;
+        bool overrideMapperVolume = playback.VolumeRampGain.HasValue &&
+                                    _appSettings.Sync.Playback.RampOverrideMapperVolume;
         foreach (var sibling in siblings)
         {
             // Unknown/unprepared siblings cannot be assumed silent.
             if (!_playNodeToCachedAudioMapping.TryGetValue(sibling, out var audio) ||
                 !_sampleAudibility.TryGetValue(audio, out var audible)) return playback;
-            if (audible && (_appSettings.Sync.Filters.IgnoreLineVolumes || sibling.Volume > 0)) return playback;
+            if (audible && (overrideMapperVolume || _appSettings.Sync.Filters.IgnoreLineVolumes || sibling.Volume > 0)) return playback;
         }
 
         return playback with { CachedAudio = fallback, IsFallback = true };

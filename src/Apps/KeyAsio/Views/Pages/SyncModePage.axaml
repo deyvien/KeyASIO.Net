@@ -146,13 +146,20 @@
                     Description="Restart the enabled volume ramps when your combo breaks, even for short combos."
                     Icon="Refresh"
                     IsChecked="{Binding AppSettings.Sync.Playback.ResetVolumeRampOnComboBreak}" />
+                  <controls:SettingItem
+                    x:Name="RampOverrideMapperVolumeSetting"
+                    Classes="Switch"
+                    Header="Override mapper volume to 100%"
+                    Description="Use a 100% mapper-volume ceiling for enabled ramps. Your volume sliders and the quieter fallback level still apply."
+                    Icon="VolumeHigh"
+                    IsChecked="{Binding AppSettings.Sync.Playback.RampOverrideMapperVolume}" />
                   <controls:SettingItem Header="Ramp mode" Icon="Tune">
                     <ComboBox MinWidth="150"
                               ItemsSource="{Binding SingleNoteRampCurves}"
                               SelectedItem="{Binding AppSettings.Sync.Playback.SingleNoteRampCurve}" />
                   </controls:SettingItem>
                   <controls:SettingItem Header="Count to maximum" Icon="MusicNote"
-                                        Description="Each single note or chord counts once in its run. Maximum follows the mapper's volume.">
+                                        Description="Each single note or chord counts once in its run. Maximum follows mapper volume unless overridden above.">
                     <NumericUpDown Minimum="1" Maximum="1000" Increment="1" FormatString="F0"
                                    Value="{Binding AppSettings.Sync.Playback.SingleNoteRampNotes}" />
                   </controls:SettingItem>

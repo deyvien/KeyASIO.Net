@@ -179,6 +179,9 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Restart volume ramp-up after a gameplay combo break. Applies to both enabled note types.")]
     public bool ResetVolumeRampOnComboBreak { get; set; }
 
+    [Description("Use 100% mapper volume for ramped notes. User volume controls and the quieter fallback cap still apply.")]
+    public bool RampOverrideMapperVolume { get; set; }
+
     public SingleNoteRampCurve SingleNoteRampCurve { get; set; } = SingleNoteRampCurve.Linear;
 
     [Description("Number of played single notes or chords in a same-type run to reach authored volume, from 1 to 1000.")]

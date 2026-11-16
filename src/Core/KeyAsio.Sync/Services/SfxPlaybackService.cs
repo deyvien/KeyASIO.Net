@@ -89,8 +89,9 @@ public class SfxPlaybackService
 
             if (playbackInfo.VolumeRampGain is { } rampGain)
             {
-                // The mapper's level is the ceiling, even when Ignore line volumes is enabled.
-                volume = playbackInfo.IsFallback ? Math.Min(0.25f, playableNode.Volume) : playableNode.Volume;
+                // Respect mapper volume unless the ramp's explicit override is enabled.
+                float ceiling = _appSettings.Sync.Playback.RampOverrideMapperVolume ? 1 : playableNode.Volume;
+                volume = playbackInfo.IsFallback ? Math.Min(0.25f, ceiling) : ceiling;
                 volume *= Math.Clamp(rampGain, 0, 1);
             }
 
