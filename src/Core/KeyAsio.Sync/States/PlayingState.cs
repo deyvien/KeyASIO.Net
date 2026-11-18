@@ -99,6 +99,22 @@ public class PlayingState : IGameState
             return;
         }
 
+        // Use the shared game clock, not a wall-clock timer. Brief interpolation freezes
+        // must not delay a threshold; the sequencer rejects actually stalled/paused clocks.
+        if (_gameplaySessionManager.CurrentHitsoundSequencer is ManiaHitsoundSequencer thresholdSequencer)
+        {
+            try
+            {
+                _playbackBuffer.Clear();
+                thresholdSequencer.ProcessChordThresholds(_playbackBuffer);
+                _sfxPlaybackService.DispatchManiaGroups(_playbackBuffer);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error releasing chord judgement thresholds.");
+            }
+        }
+
         // Pause/resume loop audio on edge transitions
         if (isAudioPaused != _wasAudioPaused)
         {

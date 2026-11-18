@@ -32,6 +32,9 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
     private OsuFile? _chordMap;
     private int _chordSeekTime;
     private readonly List<PlaybackInfo> _immediateBuffer = new(8);
+    private readonly List<ManiaChordGate.PressResult> _thresholdResults = new(8);
+    private readonly Dictionary<double, float> _releasedChordGains = new();
+    private readonly Queue<double> _releasedChordHeads = new();
     private readonly NoteVolumeRamp _singleNoteRamp = new();
     private readonly NoteVolumeRamp _chordRamp = new();
 
@@ -51,6 +54,7 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         appSettings.Sync.Playback.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(AppSettingsSyncPlayback.WaitForFinalChordKey) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.UseChordJudgementThresholds) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes))
             {
                 ClearChordState();
@@ -331,30 +335,67 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
                 return;
             }
 
-            var result = _chordGate.ProcessPress(lane, ctx.PlayTime,
-                ChordWindow(map.Difficulty.OverallDifficulty, ctx.PlayMods), groupChords);
+            var time = ctx.PlayTime;
+            var window = ChordWindow(map.Difficulty.OverallDifficulty, ctx.PlayMods);
+            var result = _chordGate.ProcessPress(lane, time, window, groupChords,
+                _appSettings.Sync.Playback.ChordJudgementThresholdsActive
+                    ? ManiaJudgementWindows.Classic(map.Difficulty.OverallDifficulty, ctx.PlayMods) : null);
+            AppendDueThresholds(buffer, time, window);
+            int start = buffer.Count;
             if (!onlyNotes && !(groupChords && result.MatchesNote && result.IsChord))
             {
                 foreach (var immediate in _immediateBuffer)
                     buffer.Add(immediate with { IsChord = result.MatchesNote && result.IsChord });
-                ApplyVolumeRamp(buffer, result);
+                ApplyVolumeRamp(buffer, result, start);
                 return;
             }
-            foreach (var node in result.Samples)
-            {
-                if (_gameplayAudioService.TryGetAudioByNode(node, out var audio))
-                    buffer.Add(new PlaybackInfo(audio, node) { IsChord = result.IsChord });
-            }
-            ApplyVolumeRamp(buffer, result);
-            if (buffer.Count > 1)
-                _logger.LogDebug("Final chord key: releasing {Samples} samples together", buffer.Count);
+            AppendChordResult(buffer, result);
         }
+    }
+
+    // Called by the game-clock tick even when no further key is pressed.
+    internal void ProcessChordThresholds(List<PlaybackInfo> buffer)
+    {
+        lock (_chordLock)
+        {
+            var ctx = _syncSessionContext;
+            var map = _gameplaySessionManager.OsuFile;
+            if (!_appSettings.Sync.Playback.ChordJudgementThresholdsActive) return;
+            if (!ctx.IsStarted || ctx.OsuStatus != OsuMemoryStatus.Playing || ctx.HasStalledGameplayClock ||
+                !_appSettings.Sync.EnableSync || _playbackEngine.CurrentDevice == null || map?.HitObjects == null)
+            {
+                ClearChordState();
+                return;
+            }
+            AppendDueThresholds(buffer, ctx.PlayTime, ChordWindow(map.Difficulty.OverallDifficulty, ctx.PlayMods));
+        }
+    }
+
+    private void AppendDueThresholds(List<PlaybackInfo> buffer, double time, double window)
+    {
+        if (_chordGate == null) return;
+        _thresholdResults.Clear();
+        _chordGate.DrainDue(time, window, _thresholdResults);
+        foreach (var result in _thresholdResults) AppendChordResult(buffer, result);
+    }
+
+    private void AppendChordResult(List<PlaybackInfo> buffer, ManiaChordGate.PressResult result)
+    {
+        int start = buffer.Count;
+        foreach (var node in result.Samples)
+            if (_gameplayAudioService.TryGetAudioByNode(node, out var audio))
+                buffer.Add(new PlaybackInfo(audio, node) { IsChord = result.IsChord });
+        ApplyVolumeRamp(buffer, result, start);
+        if (buffer.Count > start)
+            _logger.LogDebug("Chord release: {Samples} samples at head {Head}", buffer.Count - start, result.HeadTime);
     }
 
     private void ResetVolumeRamps()
     {
         _singleNoteRamp.Reset();
         _chordRamp.Reset();
+        _releasedChordGains.Clear();
+        _releasedChordHeads.Clear();
     }
 
     internal void OnComboBreak()
@@ -377,21 +418,32 @@ public class ManiaHitsoundSequencer : IHitsoundSequencer
         ObserveRampType(note);
         if (!note.MatchesNote || !note.IsNewPress) return null;
         if (note.IsChord)
-            return settings.RampChordVolume
-                ? _chordRamp.Advance(note.ChordRun, note.HeadTime, settings.SingleNoteRampCurve, settings.SingleNoteRampNotes)
-                : null;
+        {
+            if (!settings.RampChordVolume) return null;
+            // Split releases of one chord keep the original gain, even if another note intervenes.
+            if (settings.ChordJudgementThresholdsActive && _releasedChordGains.TryGetValue(note.HeadTime, out var previous))
+                return previous;
+            var gain = _chordRamp.Advance(note.ChordRun, note.HeadTime, settings.SingleNoteRampCurve, settings.SingleNoteRampNotes);
+            if (settings.ChordJudgementThresholdsActive)
+            {
+                _releasedChordGains[note.HeadTime] = gain;
+                _releasedChordHeads.Enqueue(note.HeadTime);
+                if (_releasedChordHeads.Count > 128) _releasedChordGains.Remove(_releasedChordHeads.Dequeue());
+            }
+            return gain;
+        }
         return settings.RampSingleNoteVolume
             ? _singleNoteRamp.Advance(note.SingleRun, note.HeadTime, settings.SingleNoteRampCurve, settings.SingleNoteRampNotes)
             : null;
     }
 
-    private void ApplyVolumeRamp(List<PlaybackInfo> buffer, ManiaChordGate.PressResult note)
+    private void ApplyVolumeRamp(List<PlaybackInfo> buffer, ManiaChordGate.PressResult note, int start = 0)
     {
         ObserveRampType(note);
-        if (buffer.Count == 0) return; // An incomplete grouped chord does not advance its run.
+        if (buffer.Count == start) return; // An incomplete grouped chord does not advance its run.
         var gain = GetVolumeRampGain(note);
         if (!gain.HasValue) return;
-        for (int i = 0; i < buffer.Count; i++)
+        for (int i = start; i < buffer.Count; i++)
             buffer[i] = buffer[i] with { VolumeRampGain = gain };
     }
 

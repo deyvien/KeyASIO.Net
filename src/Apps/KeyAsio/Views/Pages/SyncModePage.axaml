@@ -94,9 +94,18 @@
               x:Name="WaitForFinalChordKeySetting"
               Classes="Switch"
               Header="Wait until final chord key"
-              Description="Play a matched chord together on its final key. Incomplete chords stay silent. Other taps keep their normal feedback unless note-only filtering is enabled."
+              Description="Play a matched chord together on its final key. Incomplete chords stay silent unless judgement thresholds are enabled. Other taps keep their normal feedback unless filtered."
               Icon="MusicNote"
               IsChecked="{Binding AppSettings.Sync.Playback.WaitForFinalChordKey}" />
+            <controls:SettingItem
+              x:Name="UseChordJudgementThresholdsSetting"
+              Classes="Switch"
+              Margin="24,0,0,0"
+              IsEnabled="{Binding AppSettings.Sync.Playback.WaitForFinalChordKey}"
+              Header="Release at judgement thresholds"
+              Description="Play pressed notes together when their best judgement window ends, or on the final key. Later hits form a new group; unpressed keys stay silent."
+              Icon="TimerOutline"
+              IsChecked="{Binding AppSettings.Sync.Playback.UseChordJudgementThresholds}" />
             <controls:SettingItem
               x:Name="UseSeparateChordVolumeSetting"
               Classes="Switch"

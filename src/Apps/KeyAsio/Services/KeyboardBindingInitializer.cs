@@ -188,7 +188,7 @@ public class KeyboardBindingInitializer
                     // not be used to discard a physical key press.
                     sequencer.ProcessInteraction(_playbackBuffer, keyIndex, keyTotal);
                     if (sequencer is ManiaHitsoundSequencer && _appSettings.Sync.Playback.WaitForFinalChordKey)
-                        _sfxPlaybackService.DispatchChord(_playbackBuffer);
+                        _sfxPlaybackService.DispatchManiaGroups(_playbackBuffer);
                     else
                         foreach (var playbackInfo in _playbackBuffer)
                             _sfxPlaybackService.DispatchPlayback(playbackInfo);

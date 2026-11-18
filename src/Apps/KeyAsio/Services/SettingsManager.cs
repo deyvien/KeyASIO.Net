@@ -116,6 +116,7 @@ public class SettingsManager : IDisposable
             else if (e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceFactor) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.BalanceMode) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.OnlyPlayMatchingNotes) ||
+                e.PropertyName == nameof(AppSettingsSyncPlayback.UseChordJudgementThresholds) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.UseFallbackHitsounds) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.RampSingleNoteVolume) ||
                 e.PropertyName == nameof(AppSettingsSyncPlayback.RampChordVolume) ||

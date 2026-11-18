@@ -20,6 +20,8 @@ internal sealed class ManiaChordGate
         public int[] Lanes { get; } = lanes;
         public SampleEvent[] Samples { get; } = samples;
         public HashSet<int> Pressed { get; } = new();
+        public HashSet<int> Waiting { get; } = new();
+        public double Deadline { get; set; } = double.PositiveInfinity;
         public bool Finished { get; set; }
         public int SingleRun { get; set; }
         public int ChordRun { get; set; }
@@ -28,6 +30,8 @@ internal sealed class ManiaChordGate
     private readonly Dictionary<int, Chord[]> _lanes;
     private readonly Chord[] _chords;
     private readonly HashSet<Chord> _pending = new();
+    private readonly Queue<PressResult> _ready = new();
+    private readonly List<Chord> _due = new();
     private double _lastTime = double.NegativeInfinity;
     private readonly int _keyCount;
     private readonly HashSet<double> _chordTimes;
@@ -71,16 +75,10 @@ internal sealed class ManiaChordGate
     public IReadOnlyList<SampleEvent> Press(int lane, double time, double window)
         => ProcessPress(lane, time, window, groupChords: true).Samples;
 
-    public PressResult ProcessPress(int lane, double time, double window, bool groupChords)
+    public PressResult ProcessPress(int lane, double time, double window, bool groupChords,
+        ManiaJudgementWindows? judgementWindows = null)
     {
-        if (time < _lastTime) CancelPending();
-        _lastTime = time;
-        foreach (var expired in _pending.Where(x => time > x.Offset + window).ToArray())
-        {
-            expired.Finished = true;
-            expired.Pressed.Clear();
-            _pending.Remove(expired);
-        }
+        Advance(time, window);
         if (!_lanes.TryGetValue(lane, out var notes) || notes.Length == 0) return PressResult.Unmatched;
 
         int low = 0, high = notes.Length;
@@ -121,6 +119,11 @@ internal sealed class ManiaChordGate
                 : nearest.Samples;
             return held with { Samples = samples };
         }
+        if (isChord && judgementWindows is { } windows)
+        {
+            nearest.Waiting.Add(lane);
+            nearest.Deadline = Math.Min(nearest.Deadline, nearest.Offset + windows.LateEdgeFor(time - nearest.Offset));
+        }
         if (nearest.Pressed.Count != nearest.Lanes.Length)
         {
             _pending.Add(nearest);
@@ -129,15 +132,55 @@ internal sealed class ManiaChordGate
 
         nearest.Finished = true;
         _pending.Remove(nearest);
-        return held with { Samples = nearest.Samples };
+        return judgementWindows.HasValue && isChord ? ReleaseWaiting(nearest) : held with { Samples = nearest.Samples };
+    }
+
+    public void DrainDue(double time, double window, List<PressResult> results)
+    {
+        Advance(time, window);
+        while (_ready.TryDequeue(out var result)) results.Add(result);
+    }
+
+    private void Advance(double time, double window)
+    {
+        if (time < _lastTime) CancelPending();
+        _lastTime = time;
+        _due.Clear();
+        foreach (var chord in _pending)
+            if (time >= chord.Deadline || time > chord.Offset + window) _due.Add(chord);
+        _due.Sort(static (a, b) => a.Deadline != b.Deadline
+            ? a.Deadline.CompareTo(b.Deadline) : a.Offset.CompareTo(b.Offset));
+        foreach (var chord in _due)
+        {
+            if (time >= chord.Deadline && chord.Waiting.Count > 0)
+                _ready.Enqueue(ReleaseWaiting(chord));
+            if (time > chord.Offset + window)
+            {
+                chord.Finished = true;
+                _pending.Remove(chord);
+            }
+        }
+    }
+
+    private PressResult ReleaseWaiting(Chord chord)
+    {
+        var samples = chord.Samples.Where(x => chord.Waiting.Contains(Math.Clamp(
+            (int)Math.Round((x.Balance + 1d) / 2 * _keyCount - .5), 0, _keyCount - 1))).ToArray();
+        chord.Waiting.Clear();
+        chord.Deadline = double.PositiveInfinity;
+        return new(true, true, samples)
+            { HeadTime = chord.Offset, SingleRun = chord.SingleRun, ChordRun = chord.ChordRun, IsNewPress = true };
     }
 
     public void CancelPending()
     {
+        _ready.Clear();
         foreach (var chord in _pending)
         {
             chord.Finished = true;
             chord.Pressed.Clear();
+            chord.Waiting.Clear();
+            chord.Deadline = double.PositiveInfinity;
         }
         _pending.Clear();
     }

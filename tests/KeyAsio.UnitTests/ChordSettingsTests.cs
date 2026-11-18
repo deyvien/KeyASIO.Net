@@ -14,6 +14,35 @@ namespace KeyAsio.UnitTests;
 public sealed class ChordSettingsTests
 {
     [AvaloniaFact]
+    public async Task JudgementThresholdChildDefaultsOffPersistsAndRequiresParent()
+    {
+        var folder = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var converter = MyYamlConfigurationConverter.Instance;
+            var settings = ConfigurationFactory.GetConfiguration<AppSettings>(folder, "appsettings.yaml", converter);
+            Assert.False(settings.Sync.Playback.UseChordJudgementThresholds);
+            using var manager = new SettingsManager(NullLogger<SettingsManager>.Instance, settings,
+                Mock.Of<IPlaybackEngine>(), Mock.Of<ISukiToastManager>());
+            foreach (bool enabled in new[] { true, false })
+            {
+                settings.Sync.Playback.UseChordJudgementThresholds = enabled;
+                Assert.False(settings.Sync.Playback.ChordJudgementThresholdsActive);
+                settings.Sync.Playback.WaitForFinalChordKey = true;
+                Assert.Equal(enabled, settings.Sync.Playback.ChordJudgementThresholdsActive);
+                settings.Sync.Playback.WaitForFinalChordKey = false;
+                Assert.Equal(enabled, settings.Sync.Playback.UseChordJudgementThresholds);
+                await Task.Delay(750);
+                Dispatcher.UIThread.RunJobs();
+                var saved = (AppSettings)converter.DeserializeSettings(await File.ReadAllTextAsync(Path.Combine(folder, "appsettings.yaml")), typeof(AppSettings));
+                Assert.Equal(enabled, saved.Sync.Playback.UseChordJudgementThresholds);
+                Assert.False(saved.Sync.Playback.ChordJudgementThresholdsActive);
+            }
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [AvaloniaFact]
     public async Task MapperOverrideDefaultsOffAndPersistsBothValues()
     {
         var folder = Directory.CreateTempSubdirectory().FullName;

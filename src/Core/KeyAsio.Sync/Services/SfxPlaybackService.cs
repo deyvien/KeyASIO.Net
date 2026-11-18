@@ -55,6 +55,30 @@ public class SfxPlaybackService
         }
     }
 
+    // One input/tick may contain overdue chord groups plus an ordinary tap.
+    // Keep each chord atomic and route ordinary feedback through the effects fader.
+    public void DispatchManiaGroups(IReadOnlyList<PlaybackInfo> buffer)
+    {
+        if (buffer.Count == 0) return;
+        if (buffer.All(x => x.IsChord && x.PlaybackEvent.Offset == buffer[0].PlaybackEvent.Offset))
+        {
+            DispatchChord(buffer);
+            return;
+        }
+        List<PlaybackInfo>? group = null;
+        foreach (var item in buffer)
+        {
+            if (group is { Count: > 0 } && (!item.IsChord || group[0].PlaybackEvent.Offset != item.PlaybackEvent.Offset))
+            {
+                DispatchChord(group);
+                group.Clear();
+            }
+            if (item.IsChord) (group ??= new()).Add(item);
+            else DispatchPlayback(item);
+        }
+        if (group is { Count: > 0 }) DispatchChord(group);
+    }
+
     private void DispatchPlaybackTo(PlaybackInfo playbackInfo, IMixingSampleProvider mixer, float? overrideVolume = null)
     {
         playbackInfo = _gameplayAudioService.ResolveFallback(playbackInfo);
