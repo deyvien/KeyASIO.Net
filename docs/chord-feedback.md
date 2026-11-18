@@ -38,6 +38,41 @@ this follows the normal immediate path and does not repair replay detection itse
 Tracked by https://github.com/deyvien/KeyASIO.Net/issues/2.
 Independent note filtering: https://github.com/deyvien/KeyASIO.Net/issues/4.
 
+## Judgement-threshold releases
+
+Under **Wait until final chord key**, enable **Release at judgement thresholds**.
+This child defaults to off and is disabled while its parent is off, retaining
+its saved choice. With it off, incomplete chords keep the original silence.
+
+Pressed chord lanes wait together until the final required key, or the late
+edge of the best judgement among the waiting hits, whichever comes first.
+For example, 320 hits release together at the end of the 320 window if another
+lane is still missing. Later 300 hits form a fresh group and wait until the
+remaining keys finish or the 300 window ends. The final remaining key releases
+immediately with any waiting hits. Unpressed lanes never contribute audio to
+a timed release, and already-released samples do not play again.
+
+Early hits use their judgement's late edge; a better hit before release can
+shorten the group's deadline. The shared game-clock loop checks deadlines
+without requiring another keypress. Actual playback occurs on the first
+eligible loop tick after the deadline, followed by normal device buffering.
+Pauses, retries, seeks, map transitions and grouping-setting changes discard
+pending groups, with the existing clock's pause-detection limitations.
+
+Thresholds use the existing classic mania head-window model, including OD and
+DT/HT/EZ/HR, in beatmap milliseconds. They infer judgements from matched input
+timing rather than reading individual game judgements. The base formula follows
+[osu!'s classic mania windows](https://github.com/ppy/osu/blob/master/osu.Game.Rulesets.Mania/Scoring/ManiaHitWindows.cs);
+the final window retains this fork's existing matching cap. ScoreV2, converted
+maps and lazer-specific judgement modifiers are not validated here.
+
+Each released group retains chord classification for the Chords fader, even
+if it contains only one lane. Split releases share one chord-ramp step and
+keep its gain; explicit ramp resets still start over. Fallback and mapper-volume
+options apply normally. Scheduled autoplay/replay notes keep their existing timing.
+
+Tracked by https://github.com/deyvien/KeyASIO.Net/issues/19.
+
 ## Separate chord volume
 
 Under **Sync Mode → Mania Hitsounds → Wait until final chord key**, enable

@@ -155,6 +155,12 @@ public partial class AppSettingsSyncPlayback : INotifyPropertyChanged
     [Description("Mania: play a chord's hitsounds together when its final required key is pressed. Incomplete chords stay silent.")]
     public bool WaitForFinalChordKey { get; set; }
 
+    [Description("While final-key chord grouping is on, release pressed notes together at their judgement deadline; later hits form a new group.")]
+    public bool UseChordJudgementThresholds { get; set; }
+
+    [YamlDotNet.Serialization.YamlIgnore]
+    public bool ChordJudgementThresholdsActive => WaitForFinalChordKey && UseChordJudgementThresholds;
+
     [Description("Mania: silence taps that do not match a playable beatmap note. Independent of final-key chord feedback; off preserves normal tap sounds.")]
     public bool OnlyPlayMatchingNotes { get; set; }
 

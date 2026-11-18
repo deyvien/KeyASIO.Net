@@ -342,6 +342,111 @@ public sealed class ManiaChordIntegrationTests
             settings.Sync.Playback.RampSingleNoteVolume = false;
             settings.Sync.Playback.RampChordVolume = false;
 
+            // Deadline releases run without another key, retain per-chord gain, and do not replay old lanes.
+            settings.Sync.Playback.UseChordJudgementThresholds = true;
+            settings.Sync.Playback.WaitForFinalChordKey = true;
+            settings.Sync.Playback.OnlyPlayMatchingNotes = true;
+            settings.Sync.Playback.RampChordVolume = true;
+            settings.Sync.Playback.UseSeparateChordVolume = true;
+            sequencer.SeekTo(0);
+            void TickThreshold(int time)
+            {
+                buffer.Clear(); ctx.BaseMemoryTime = time;
+                sequencer.ProcessChordThresholds(buffer);
+            }
+            void RestartThresholds()
+            {
+                ctx.BaseMemoryTime = 0;
+                _ = ctx.PlayTime; // Simulate the clock rewind too, avoiding interpolation's small-backstep clamp.
+                sequencer.SeekTo(0);
+            }
+            Press(0, 1000);
+            Assert.Empty(buffer);
+            TickThreshold(1020);
+            Assert.Single(buffer); CheckChordGain(1f / 3);
+            Assert.Equal(-.75f, buffer[0].PlaybackEvent.Balance);
+            TickThreshold(1021);
+            Assert.Empty(buffer);
+            Press(2, 1030);
+            Assert.Single(buffer); CheckChordGain(1f / 3);
+            Assert.Equal(.25f, buffer[0].PlaybackEvent.Balance);
+            Press(0, 2000);
+            TickThreshold(2020);
+            Assert.Single(buffer); CheckChordGain(2f / 3);
+            Press(2, 2030);
+            Assert.Single(buffer); CheckChordGain(2f / 3);
+            Press(0, 2500);
+            TickThreshold(2520);
+            Assert.Single(buffer); CheckChordGain(1);
+            Press(2, 2530);
+            Assert.Empty(buffer); // A late key waits while the final lane is still missing.
+            TickThreshold(2545);
+            Assert.Single(buffer); CheckChordGain(1);
+            Press(3, 2560);
+            Assert.Single(buffer); CheckChordGain(1);
+
+            // Exercise the actual game-clock tick and mixer routing with no further key.
+            RestartThresholds();
+            mixer.RemoveAllMixerInputs(); chordMixer.RemoveAllMixerInputs();
+            mixer.Read(output, 0, output.Length); chordMixer.Read(output, 0, output.Length); // Process queued clears before adding new sound.
+            Press(0, 1000);
+            ctx.BaseMemoryTime = 1020;
+            playing.OnTick(ctx, 1000, 1020, isAudioPaused: true); // Interpolation freeze must not suppress a due group.
+            mixer.Read(output, 0, output.Length);
+            Assert.All(output, x => Assert.Equal(0, x));
+            chordMixer.Read(output, 0, output.Length);
+            Assert.Contains(output, x => Math.Abs(x) > .001f);
+
+            // A free tap can share one input event with an overdue chord, without inheriting its gain or mixer.
+            RestartThresholds();
+            mixer.RemoveAllMixerInputs(); chordMixer.RemoveAllMixerInputs();
+            mixer.Read(output, 0, output.Length); chordMixer.Read(output, 0, output.Length);
+            settings.Sync.Playback.OnlyPlayMatchingNotes = false;
+            Press(0, 1000);
+            Press(3, 1030);
+            Assert.Equal(2, buffer.Count);
+            Assert.True(buffer[0].IsChord);
+            Assert.Equal(1f / 3, buffer[0].VolumeRampGain!.Value, 6);
+            Assert.False(buffer[1].IsChord);
+            Assert.Null(buffer[1].VolumeRampGain);
+            sfx.DispatchManiaGroups(buffer);
+            mixer.Read(output, 0, output.Length);
+            Assert.Contains(output, x => Math.Abs(x) > .001f);
+            chordMixer.Read(output, 0, output.Length);
+            Assert.Contains(output, x => Math.Abs(x) > .001f);
+
+            settings.Sync.Playback.OnlyPlayMatchingNotes = true;
+            foreach (var cancel in new Action[] {
+                () => settings.Sync.Playback.UseChordJudgementThresholds = false,
+                () => settings.Sync.Playback.WaitForFinalChordKey = false,
+                () => settings.Sync.EnableSync = false,
+                () => sequencer.SeekTo(0),
+                () => ctx.OsuStatus = OsuMemoryStatus.ResultsScreen })
+            {
+                settings.Sync.Playback.UseChordJudgementThresholds = true;
+                settings.Sync.Playback.WaitForFinalChordKey = true;
+                settings.Sync.EnableSync = true;
+                ctx.OsuStatus = OsuMemoryStatus.Playing;
+                RestartThresholds();
+                Press(0, 1000);
+                cancel();
+                TickThreshold(1020);
+                Assert.Empty(buffer);
+            }
+            ctx.OsuStatus = OsuMemoryStatus.Playing;
+            settings.Sync.EnableSync = true;
+            settings.Sync.Playback.UseChordJudgementThresholds = true;
+            settings.Sync.Playback.WaitForFinalChordKey = true;
+            RestartThresholds();
+            Press(0, 1000);
+            await Task.Delay(150); // Actual stalled clock/pause cancels rather than flushing overdue samples.
+            buffer.Clear();
+            sequencer.ProcessChordThresholds(buffer);
+            Assert.Empty(buffer);
+            TickThreshold(1030);
+            Assert.Empty(buffer);
+            settings.Sync.Playback.RampChordVolume = false;
+            // Autoplay keeps its original schedule even with the child setting saved on.
             settings.Sync.Playback.UseSeparateChordVolume = true;
             settings.Sync.Playback.WaitForFinalChordKey = true;
             sequencer.SeekTo(0);
